@@ -38,7 +38,6 @@ public class ProductController {
     @GetMapping
     public ResponseEntity<Page<ProductResponse>> getAllProducts(
             @PageableDefault(size = 20, sort = "name") Pageable pageable) {
-        
         Page<ProductResponse> products = productService.getAllProducts(pageable);
         return ResponseEntity.ok(products);
     }
@@ -75,7 +74,7 @@ public class ProductController {
             @PageableDefault(size = 20, sort = "name") Pageable pageable,
             @RequestParam(required = false) @Size(max = 100, message = "Name must not exceed 100 characters") String name,
             @RequestParam(required = false) @Size(max = 50, message = "Category must not exceed 50 characters") String category,
-            @RequestParam(required = false) @Size(max = 100, message = "SKU must not exceed 100 characters") String sku,
+            @RequestParam(required = false) @Size(max = 50, message = "SKU must not exceed 50 characters") String sku,
             @RequestParam(required = false) @Size(max = 500, message = "Description must not exceed 500 characters") String description,
             @RequestParam(required = false) BigDecimal minPrice,
             @RequestParam(required = false) BigDecimal maxPrice,
