@@ -17,9 +17,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.util.List;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 @Service
 public class ProductService {
@@ -70,30 +68,6 @@ public class ProductService {
         return productMapper.toResponse(product);
     }
 
-    @Transactional(readOnly = true)
-    public Page<ProductResponse> getProductsByCategory(String category, Pageable pageable) {
-        return productRepository.findByCategoryAndActiveTrue(category, pageable)
-                .map(productMapper::toResponse);
-    }
-
-    @Transactional(readOnly = true)
-    public Page<ProductResponse> searchProductsByName(String name, Pageable pageable) {
-        return productRepository.findByNameContainingIgnoreCaseAndActiveTrue(name, pageable)
-                .map(productMapper::toResponse);
-    }
-
-    @Transactional(readOnly = true)
-    public List<ProductResponse> getLowStockProducts() {
-        return productRepository.findLowStockActiveProducts().stream()
-                .map(productMapper::toResponse)
-                .collect(Collectors.toList());
-    }
-
-    @Transactional(readOnly = true)
-    public Page<ProductResponse> getLowStockProducts(Pageable pageable) {
-        return productRepository.findLowStockActiveProducts(pageable)
-                .map(productMapper::toResponse);
-    }
 
     @Transactional
     public ProductResponse updateProduct(UUID id, UpdateProductRequest request) {
