@@ -4,5 +4,6 @@ public enum MovementReason {
     PURCHASE,
     SALE,
     ADJUSTMENT,
-    RETURN
+    RETURN,
+    INITIAL_STOCK
 }

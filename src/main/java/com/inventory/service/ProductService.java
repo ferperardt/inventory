@@ -1,11 +1,15 @@
 package com.inventory.service;
 
 import com.inventory.dto.request.CreateProductRequest;
+import com.inventory.dto.request.CreateStockMovementRequest;
 import com.inventory.dto.request.UpdateProductRequest;
 import com.inventory.dto.response.ProductResponse;
 import com.inventory.entity.Product;
+import com.inventory.enums.MovementReason;
+import com.inventory.enums.MovementType;
 import com.inventory.exception.DuplicateSkuException;
 import com.inventory.exception.InvalidStockLevelException;
+import com.inventory.exception.ProductHasStockException;
 import com.inventory.exception.ProductNotFoundException;
 import com.inventory.mapper.ProductMapper;
 import com.inventory.repository.ProductRepository;
@@ -24,10 +28,12 @@ public class ProductService {
 
     private final ProductRepository productRepository;
     private final ProductMapper productMapper;
+    private final StockMovementService stockMovementService;
 
-    public ProductService(ProductRepository productRepository, ProductMapper productMapper) {
+    public ProductService(ProductRepository productRepository, ProductMapper productMapper, StockMovementService stockMovementService) {
         this.productRepository = productRepository;
         this.productMapper = productMapper;
+        this.stockMovementService = stockMovementService;
     }
 
     @Transactional
@@ -42,6 +48,21 @@ public class ProductService {
 
         Product product = productMapper.toEntity(request);
         Product savedProduct = productRepository.save(product);
+
+        // Create initial stock movement if stockQuantity > 0
+        Integer stockQuantity = request.stockQuantity() != null ? request.stockQuantity() : 0;
+        if (stockQuantity > 0) {
+            CreateStockMovementRequest movementRequest = new CreateStockMovementRequest(
+                    savedProduct.getId(),
+                    MovementType.IN,
+                    stockQuantity,
+                    MovementReason.INITIAL_STOCK,
+                    "Initial stock on product creation",
+                    "Initial stock set during product creation"
+            );
+            stockMovementService.createStockMovement(movementRequest);
+        }
+
         return productMapper.toResponse(savedProduct);
     }
 
@@ -84,10 +105,7 @@ public class ProductService {
             }
         }
 
-        // Validate business rule: stock quantity should not be below minimum level
-        validateStockLevel(request.stockQuantity(), request.minStockLevel());
-
-        // Update the product using MapStruct
+        // Update the product using MapStruct (stockQuantity is no longer in UpdateProductRequest)
         productMapper.updateProductFromRequest(request, product);
         
         Product savedProduct = productRepository.save(product);
@@ -99,6 +117,12 @@ public class ProductService {
         Product product = productRepository.findById(id)
                 .filter(Product::getActive)
                 .orElseThrow(() -> new ProductNotFoundException(id));
+
+        // Validate that product has no stock before deletion
+        Integer currentStock = product.getStockQuantity() != null ? product.getStockQuantity() : 0;
+        if (currentStock > 0) {
+            throw new ProductHasStockException(product.getSku(), currentStock);
+        }
 
         product.softDelete();
         productRepository.save(product);
