@@ -3,7 +3,9 @@ package com.inventory.controller;
 import com.inventory.dto.request.CreateProductRequest;
 import com.inventory.dto.request.UpdateProductRequest;
 import com.inventory.dto.response.ProductResponse;
+import com.inventory.dto.response.StockMovementResponse;
 import com.inventory.service.ProductService;
+import com.inventory.service.StockMovementService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
@@ -24,9 +26,11 @@ import java.util.UUID;
 public class ProductController {
 
     private final ProductService productService;
+    private final StockMovementService stockMovementService;
 
-    public ProductController(ProductService productService) {
+    public ProductController(ProductService productService, StockMovementService stockMovementService) {
         this.productService = productService;
+        this.stockMovementService = stockMovementService;
     }
 
     @PostMapping
@@ -89,5 +93,13 @@ public class ProductController {
         );
 
         return ResponseEntity.ok(products);
+    }
+
+    @GetMapping("/{id}/stock-movements")
+    public ResponseEntity<Page<StockMovementResponse>> getProductStockMovements(
+            @PathVariable UUID id,
+            @PageableDefault(size = 20, sort = "createdAt") Pageable pageable) {
+        Page<StockMovementResponse> movements = stockMovementService.getMovementsByProductId(id, pageable);
+        return ResponseEntity.ok(movements);
     }
 }

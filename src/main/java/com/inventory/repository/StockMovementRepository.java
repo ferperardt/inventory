@@ -16,4 +16,6 @@ public interface StockMovementRepository extends JpaRepository<StockMovement, UU
 
     @Query("SELECT sm FROM StockMovement sm JOIN FETCH sm.product WHERE sm.active = true ORDER BY sm.createdAt DESC")
     Page<StockMovement> findAllActiveWithProduct(Pageable pageable);
+
+    Page<StockMovement> findByProductIdAndActiveTrueOrderByCreatedAtDesc(UUID productId, Pageable pageable);
 }

@@ -15,6 +15,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.UUID;
+
 @Service
 public class StockMovementService {
 
@@ -33,6 +35,17 @@ public class StockMovementService {
     @Transactional(readOnly = true)
     public Page<StockMovementResponse> getAllMovements(Pageable pageable) {
         return stockMovementRepository.findByActiveTrueOrderByCreatedAtDesc(pageable)
+                .map(stockMovementMapper::toResponse);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<StockMovementResponse> getMovementsByProductId(UUID productId, Pageable pageable) {
+        // Verify product exists and is active
+        productRepository.findById(productId)
+                .filter(Product::getActive)
+                .orElseThrow(() -> new ProductNotFoundException(productId));
+
+        return stockMovementRepository.findByProductIdAndActiveTrueOrderByCreatedAtDesc(productId, pageable)
                 .map(stockMovementMapper::toResponse);
     }
 
