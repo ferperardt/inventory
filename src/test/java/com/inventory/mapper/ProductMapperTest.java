@@ -375,7 +375,6 @@ class ProductMapperTest {
             assertThat(existingProduct.getDescription()).isEqualTo(request.description());
             assertThat(existingProduct.getSku()).isEqualTo(request.sku());
             assertThat(existingProduct.getPrice()).isEqualTo(request.price());
-            assertThat(existingProduct.getStockQuantity()).isEqualTo(request.stockQuantity());
             assertThat(existingProduct.getMinStockLevel()).isEqualTo(request.minStockLevel());
             assertThat(existingProduct.getCategory()).isEqualTo(request.category());
             assertThat(existingProduct.getActive()).isEqualTo(originalActive); // Should be ignored
@@ -392,7 +391,7 @@ class ProductMapperTest {
             Product existingProduct = createCompleteProduct();
             UpdateProductRequest request = new UpdateProductRequest(
                     "Updated Product", null, "UPDATED-SKU",
-                    BigDecimal.valueOf(200.00), 20, 10, null
+                    BigDecimal.valueOf(200.00), 10, null
             );
 
             // When
@@ -403,7 +402,6 @@ class ProductMapperTest {
             assertThat(existingProduct.getDescription()).isNull();
             assertThat(existingProduct.getSku()).isEqualTo("UPDATED-SKU");
             assertThat(existingProduct.getPrice()).isEqualTo(BigDecimal.valueOf(200.00));
-            assertThat(existingProduct.getStockQuantity()).isEqualTo(20);
             assertThat(existingProduct.getMinStockLevel()).isEqualTo(10);
             assertThat(existingProduct.getCategory()).isNull();
         }
@@ -415,7 +413,7 @@ class ProductMapperTest {
             Product existingProduct = createCompleteProduct();
             UpdateProductRequest request = new UpdateProductRequest(
                     "Updated Product", "", "UPDATED-SKU",
-                    BigDecimal.valueOf(200.00), 20, 10, ""
+                    BigDecimal.valueOf(200.00), 10, ""
             );
 
             // When
@@ -466,7 +464,6 @@ class ProductMapperTest {
                     "New product description",
                     "NEW-SKU-123",
                     BigDecimal.valueOf(299.99),
-                    25,
                     15,
                     "updated-category"
             );
@@ -479,7 +476,6 @@ class ProductMapperTest {
             assertThat(existingProduct.getDescription()).isEqualTo("New product description");
             assertThat(existingProduct.getSku()).isEqualTo("NEW-SKU-123");
             assertThat(existingProduct.getPrice()).isEqualTo(BigDecimal.valueOf(299.99));
-            assertThat(existingProduct.getStockQuantity()).isEqualTo(25);
             assertThat(existingProduct.getMinStockLevel()).isEqualTo(15);
             assertThat(existingProduct.getCategory()).isEqualTo("updated-category");
         }
@@ -518,7 +514,6 @@ class ProductMapperTest {
                 "IPHONE15PRO",
                 BigDecimal.valueOf(1199.99),
                 15,
-                8,
                 "premium-electronics"
         );
     }

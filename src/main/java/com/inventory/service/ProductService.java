@@ -49,19 +49,19 @@ public class ProductService {
         Product product = productMapper.toEntity(request);
         Product savedProduct = productRepository.save(product);
 
-        // Create initial stock movement if stockQuantity > 0
+
         Integer stockQuantity = request.stockQuantity() != null ? request.stockQuantity() : 0;
-        if (stockQuantity > 0) {
-            CreateStockMovementRequest movementRequest = new CreateStockMovementRequest(
-                    savedProduct.getId(),
-                    MovementType.IN,
-                    stockQuantity,
-                    MovementReason.INITIAL_STOCK,
-                    "Initial stock on product creation",
-                    "Initial stock set during product creation"
-            );
-            stockMovementService.createStockMovement(movementRequest);
-        }
+
+        CreateStockMovementRequest movementRequest = new CreateStockMovementRequest(
+                savedProduct.getId(),
+                MovementType.IN,
+                stockQuantity,
+                MovementReason.INITIAL_STOCK,
+                "Initial stock on product creation",
+                "Initial stock set during product creation"
+        );
+        stockMovementService.createStockMovement(movementRequest);
+
 
         return productMapper.toResponse(savedProduct);
     }
@@ -107,7 +107,7 @@ public class ProductService {
 
         // Update the product using MapStruct (stockQuantity is no longer in UpdateProductRequest)
         productMapper.updateProductFromRequest(request, product);
-        
+
         Product savedProduct = productRepository.save(product);
         return productMapper.toResponse(savedProduct);
     }

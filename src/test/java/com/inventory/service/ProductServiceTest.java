@@ -1,11 +1,15 @@
 package com.inventory.service;
 
 import com.inventory.dto.request.CreateProductRequest;
+import com.inventory.dto.request.CreateStockMovementRequest;
 import com.inventory.dto.request.UpdateProductRequest;
 import com.inventory.dto.response.ProductResponse;
 import com.inventory.entity.Product;
+import com.inventory.enums.MovementReason;
+import com.inventory.enums.MovementType;
 import com.inventory.exception.DuplicateSkuException;
 import com.inventory.exception.InvalidStockLevelException;
+import com.inventory.exception.ProductHasStockException;
 import com.inventory.exception.ProductNotFoundException;
 import com.inventory.mapper.ProductMapper;
 import com.inventory.repository.ProductRepository;
@@ -31,8 +35,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.never;
@@ -47,11 +50,14 @@ class ProductServiceTest {
     @Mock
     private ProductMapper productMapper;
 
+    @Mock
+    private StockMovementService stockMovementService;
+
     private ProductService productService;
 
     @BeforeEach
     void setUp() {
-        productService = new ProductService(productRepository, productMapper);
+        productService = new ProductService(productRepository, productMapper, stockMovementService);
     }
 
     @Nested
@@ -82,6 +88,7 @@ class ProductServiceTest {
             then(productRepository).should().existsBySkuAndActiveTrue(request.sku());
             then(productMapper).should().toEntity(request);
             then(productRepository).should().save(product);
+            then(stockMovementService).should().createStockMovement(any(CreateStockMovementRequest.class));
             then(productMapper).should().toResponse(product);
         }
 
@@ -124,6 +131,104 @@ class ProductServiceTest {
             then(productRepository).should().existsBySkuAndActiveTrue(request.sku());
             then(productMapper).should(never()).toEntity(any());
             then(productRepository).should(never()).save(any());
+            then(stockMovementService).should(never()).createStockMovement(any());
+        }
+
+        @Test
+        @DisplayName("Should create product with zero stock and create stock movement")
+        void shouldCreateProductWithZeroStockAndCreateStockMovement() {
+            // Given
+            CreateProductRequest request = new CreateProductRequest(
+                    "iPhone 15", "Latest iPhone", "IPHONE15",
+                    BigDecimal.valueOf(999.99), 0, 0, "electronics"
+            );
+            Product product = createProduct(0);
+            ProductResponse expectedResponse = createProductResponse();
+
+            given(productRepository.existsBySkuAndActiveTrue(request.sku())).willReturn(false);
+            given(productMapper.toEntity(request)).willReturn(product);
+            given(productRepository.save(product)).willReturn(product);
+            given(productMapper.toResponse(product)).willReturn(expectedResponse);
+
+            // When
+            ProductResponse result = productService.createProduct(request);
+
+            // Then
+            assertThat(result).isEqualTo(expectedResponse);
+            then(productRepository).should().existsBySkuAndActiveTrue(request.sku());
+            then(productMapper).should().toEntity(request);
+            then(productRepository).should().save(product);
+            then(stockMovementService).should().createStockMovement(argThat(movementRequest -> {
+                return movementRequest.productId().equals(product.getId()) &&
+                       movementRequest.movementType() == MovementType.IN &&
+                       movementRequest.quantity().equals(0) &&
+                       movementRequest.reason() == MovementReason.INITIAL_STOCK;
+            }));
+            then(productMapper).should().toResponse(product);
+        }
+
+        @Test
+        @DisplayName("Should create product with null stock and create stock movement with zero quantity")
+        void shouldCreateProductWithNullStockAndCreateStockMovementWithZeroQuantity() {
+            // Given
+            CreateProductRequest request = new CreateProductRequest(
+                    "iPhone 15", "Latest iPhone", "IPHONE15",
+                    BigDecimal.valueOf(999.99), null, 0, "electronics"
+            );
+            Product product = createProduct(0);
+            ProductResponse expectedResponse = createProductResponse();
+
+            given(productRepository.existsBySkuAndActiveTrue(request.sku())).willReturn(false);
+            given(productMapper.toEntity(request)).willReturn(product);
+            given(productRepository.save(product)).willReturn(product);
+            given(productMapper.toResponse(product)).willReturn(expectedResponse);
+
+            // When
+            ProductResponse result = productService.createProduct(request);
+
+            // Then
+            assertThat(result).isEqualTo(expectedResponse);
+            then(productRepository).should().existsBySkuAndActiveTrue(request.sku());
+            then(productMapper).should().toEntity(request);
+            then(productRepository).should().save(product);
+            then(stockMovementService).should().createStockMovement(argThat(movementRequest -> {
+                return movementRequest.productId().equals(product.getId()) &&
+                       movementRequest.movementType() == MovementType.IN &&
+                       movementRequest.quantity().equals(0) &&  // null becomes 0
+                       movementRequest.reason() == MovementReason.INITIAL_STOCK;
+            }));
+            then(productMapper).should().toResponse(product);
+        }
+
+        @Test
+        @DisplayName("Should create initial stock movement with correct details")
+        void shouldCreateInitialStockMovementWithCorrectDetails() {
+            // Given
+            CreateProductRequest request = new CreateProductRequest(
+                    "iPhone 15", "Latest iPhone", "IPHONE15",
+                    BigDecimal.valueOf(999.99), 15, 5, "electronics"
+            );
+            Product product = createProduct(15);
+            ProductResponse expectedResponse = createProductResponse();
+
+            given(productRepository.existsBySkuAndActiveTrue(request.sku())).willReturn(false);
+            given(productMapper.toEntity(request)).willReturn(product);
+            given(productRepository.save(product)).willReturn(product);
+            given(productMapper.toResponse(product)).willReturn(expectedResponse);
+
+            // When
+            ProductResponse result = productService.createProduct(request);
+
+            // Then
+            assertThat(result).isEqualTo(expectedResponse);
+            then(stockMovementService).should().createStockMovement(argThat(movementRequest -> {
+                return movementRequest.productId().equals(product.getId()) &&
+                        movementRequest.movementType() == MovementType.IN &&
+                        movementRequest.quantity().equals(15) &&
+                        movementRequest.reason() == MovementReason.INITIAL_STOCK &&
+                        movementRequest.reference().equals("Initial stock on product creation") &&
+                        movementRequest.notes().equals("Initial stock set during product creation");
+            }));
         }
     }
 
@@ -314,7 +419,7 @@ class ProductServiceTest {
             UUID id = UUID.randomUUID();
             UpdateProductRequest request = new UpdateProductRequest(
                     "iPhone 15 Pro", "Updated iPhone", "IPHONE15PRO",
-                    BigDecimal.valueOf(1199.99), 15, 8, "electronics"
+                    BigDecimal.valueOf(1199.99), 8, "electronics"
             );
             Product existingProduct = createProduct();
             existingProduct.setSku("IPHONE15");
@@ -343,7 +448,7 @@ class ProductServiceTest {
             UUID id = UUID.randomUUID();
             UpdateProductRequest request = new UpdateProductRequest(
                     "iPhone 15 Pro", "Updated iPhone", "IPHONE15",  // Same SKU
-                    BigDecimal.valueOf(1199.99), 15, 8, "electronics"
+                    BigDecimal.valueOf(1199.99), 8, "electronics"
             );
             Product existingProduct = createProduct();
             existingProduct.setSku("IPHONE15");
@@ -366,35 +471,13 @@ class ProductServiceTest {
         }
 
         @Test
-        @DisplayName("Should throw InvalidStockLevelException when updating with invalid stock")
-        void shouldThrowInvalidStockLevelExceptionWhenUpdatingWithInvalidStock() {
-            // Given
-            UUID id = UUID.randomUUID();
-            UpdateProductRequest request = new UpdateProductRequest(
-                    "iPhone 15 Pro", "Updated iPhone", "IPHONE15PRO",
-                    BigDecimal.valueOf(1199.99), 5, 15, "electronics"  // Stock < minStock
-            );
-            Product existingProduct = createProduct();
-
-            given(productRepository.findById(id)).willReturn(Optional.of(existingProduct));
-            given(productRepository.existsBySkuAndActiveTrue(request.sku())).willReturn(false);
-
-            // When & Then
-            assertThatThrownBy(() -> productService.updateProduct(id, request))
-                    .isInstanceOf(InvalidStockLevelException.class);
-
-            then(productRepository).should().findById(id);
-            then(productRepository).should(never()).save(any());
-        }
-
-        @Test
         @DisplayName("Should throw DuplicateSkuException when updating to existing SKU")
         void shouldThrowDuplicateSkuExceptionWhenUpdatingToExistingSku() {
             // Given
             UUID id = UUID.randomUUID();
             UpdateProductRequest request = new UpdateProductRequest(
                     "iPhone 15 Pro", "Updated iPhone", "EXISTING_SKU",
-                    BigDecimal.valueOf(1199.99), 15, 8, "electronics"
+                    BigDecimal.valueOf(1199.99), 8, "electronics"
             );
             Product existingProduct = createProduct();
             existingProduct.setSku("IPHONE15");
@@ -421,7 +504,7 @@ class ProductServiceTest {
         void shouldSoftDeleteProductSuccessfully() {
             // Given
             UUID id = UUID.randomUUID();
-            Product product = createProduct();
+            Product product = createProduct(0);
 
             given(productRepository.findById(id)).willReturn(Optional.of(product));
 
@@ -447,16 +530,58 @@ class ProductServiceTest {
             then(productRepository).should().findById(id);
             then(productRepository).should(never()).save(any());
         }
+
+        @Test
+        @DisplayName("Should throw ProductHasStockException when deleting product with stock > 0")
+        void shouldThrowProductHasStockExceptionWhenDeletingProductWithStock() {
+            // Given
+            UUID id = UUID.randomUUID();
+            Product product = createProduct(5); // Product with stock > 0
+
+            given(productRepository.findById(id)).willReturn(Optional.of(product));
+
+            // When & Then
+            assertThatThrownBy(() -> productService.deleteProduct(id))
+                    .isInstanceOf(ProductHasStockException.class)
+                    .hasMessageContaining("Cannot delete product")
+                    .hasMessageContaining("Current stock: 5")
+                    .hasMessageContaining("Stock must be zero before deletion");
+
+            then(productRepository).should().findById(id);
+            then(productRepository).should(never()).save(any());
+        }
+
+        @Test
+        @DisplayName("Should throw ProductHasStockException when deleting product with null stock that defaults to > 0")
+        void shouldThrowProductHasStockExceptionWhenDeletingProductWithNullStockDefaulting() {
+            // Given
+            UUID id = UUID.randomUUID();
+            Product product = createProduct(null); // null stock
+            product.setStockQuantity(10); // but actually has stock
+
+            given(productRepository.findById(id)).willReturn(Optional.of(product));
+
+            // When & Then
+            assertThatThrownBy(() -> productService.deleteProduct(id))
+                    .isInstanceOf(ProductHasStockException.class);
+
+            then(productRepository).should().findById(id);
+            then(productRepository).should(never()).save(any());
+        }
     }
 
     private Product createProduct() {
+        return createProduct(10);
+    }
+
+    private Product createProduct(Integer stockQuantity) {
         Product product = new Product();
         product.setId(UUID.randomUUID());
         product.setName("iPhone 15");
         product.setDescription("Latest iPhone");
         product.setSku("IPHONE15");
         product.setPrice(BigDecimal.valueOf(999.99));
-        product.setStockQuantity(10);
+        product.setStockQuantity(stockQuantity);
         product.setMinStockLevel(5);
         product.setCategory("electronics");
         return product;

@@ -7,6 +7,7 @@ import com.inventory.dto.response.ProductResponse;
 import com.inventory.exception.DuplicateSkuException;
 import com.inventory.exception.GlobalExceptionHandler;
 import com.inventory.exception.InvalidStockLevelException;
+import com.inventory.exception.ProductHasStockException;
 import com.inventory.exception.ProductNotFoundException;
 import com.inventory.service.ProductService;
 import org.junit.jupiter.api.BeforeEach;
@@ -20,10 +21,10 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableHandlerMethodArgumentResolver;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
-import org.springframework.data.web.PageableHandlerMethodArgumentResolver;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -290,7 +291,7 @@ class ProductControllerTest {
             UUID productId = UUID.randomUUID();
             UpdateProductRequest request = new UpdateProductRequest(
                     "iPhone 15 Pro", "Updated iPhone", "IPHONE15PRO",
-                    BigDecimal.valueOf(1199.99), 15, 8, "electronics"
+                    BigDecimal.valueOf(1199.99), 15, "electronics"
             );
             ProductResponse response = createProductResponse();
 
@@ -315,7 +316,7 @@ class ProductControllerTest {
             UUID productId = UUID.randomUUID();
             UpdateProductRequest request = new UpdateProductRequest(
                     "iPhone 15 Pro", "Updated iPhone", "IPHONE15PRO",
-                    BigDecimal.valueOf(1199.99), 15, 8, "electronics"
+                    BigDecimal.valueOf(1199.99), 15, "electronics"
             );
 
             given(productService.updateProduct(eq(productId), any(UpdateProductRequest.class)))
@@ -335,7 +336,7 @@ class ProductControllerTest {
             UUID productId = UUID.randomUUID();
             UpdateProductRequest invalidRequest = new UpdateProductRequest(
                     "", "Description", "invalid-sku",
-                    BigDecimal.valueOf(-1), -5, -1, "electronics"
+                    BigDecimal.valueOf(-1), -5, "electronics"
             );
 
             // When & Then
@@ -351,7 +352,7 @@ class ProductControllerTest {
             // Given
             UpdateProductRequest request = new UpdateProductRequest(
                     "Valid Product", "Description", "VALID-SKU",
-                    BigDecimal.valueOf(100.00), 10, 5, "electronics"
+                    BigDecimal.valueOf(100.00), 10, "electronics"
             );
 
             // When & Then
@@ -412,6 +413,26 @@ class ProductControllerTest {
                     .andExpect(jsonPath("$.parameter").value("id"))
                     .andExpect(jsonPath("$.invalidValue").value("invalid-uuid"))
                     .andExpect(jsonPath("$.expectedType").value("UUID"));
+        }
+
+        @Test
+        @DisplayName("Should return 422 when product has stock")
+        void shouldReturn422WhenProductHasStock() throws Exception {
+            // Given
+            UUID productId = UUID.randomUUID();
+
+            willThrow(new ProductHasStockException("IPHONE15", 5))
+                    .given(productService).deleteProduct(productId);
+
+            // When & Then
+            mockMvc.perform(delete("/api/v1/products/{id}", productId))
+                    .andExpect(status().isUnprocessableEntity())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.status").value(422))
+                    .andExpect(jsonPath("$.error").value("Product Has Stock"))
+                    .andExpect(jsonPath("$.message").value("Cannot delete product IPHONE15. Current stock: 5. Stock must be zero before deletion."));
+
+            then(productService).should().deleteProduct(productId);
         }
     }
 
