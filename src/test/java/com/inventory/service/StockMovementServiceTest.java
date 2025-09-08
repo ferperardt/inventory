@@ -1,11 +1,15 @@
 package com.inventory.service;
 
+import com.inventory.dto.request.CreateStockMovementRequest;
 import com.inventory.dto.response.StockMovementResponse;
 import com.inventory.entity.Product;
 import com.inventory.entity.StockMovement;
 import com.inventory.enums.MovementReason;
 import com.inventory.enums.MovementType;
+import com.inventory.exception.InsufficientStockException;
+import com.inventory.exception.ProductNotFoundException;
 import com.inventory.mapper.StockMovementMapper;
+import com.inventory.repository.ProductRepository;
 import com.inventory.repository.StockMovementRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -22,11 +26,15 @@ import org.springframework.data.domain.Pageable;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
+import static org.mockito.Mockito.never;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("StockMovementService Tests")
@@ -38,11 +46,14 @@ class StockMovementServiceTest {
     @Mock
     private StockMovementMapper stockMovementMapper;
 
+    @Mock
+    private ProductRepository productRepository;
+
     private StockMovementService stockMovementService;
 
     @BeforeEach
     void setUp() {
-        stockMovementService = new StockMovementService(stockMovementRepository, stockMovementMapper);
+        stockMovementService = new StockMovementService(stockMovementRepository, stockMovementMapper, productRepository);
     }
 
     @Nested
@@ -200,6 +211,325 @@ class StockMovementServiceTest {
         }
     }
 
+    @Nested
+    @DisplayName("createStockMovement() Tests")
+    class CreateStockMovementTests {
+
+        @Test
+        @DisplayName("Should create IN stock movement successfully")
+        void shouldCreateInStockMovementSuccessfully() {
+            // Given
+            UUID productId = UUID.randomUUID();
+            CreateStockMovementRequest request = new CreateStockMovementRequest(
+                    productId, MovementType.IN, 10, MovementReason.PURCHASE,
+                    "PO-2024-001", "Restocking inventory"
+            );
+
+            Product product = createProductWithStock(15);
+            StockMovement savedMovement = createStockMovementForProduct(product, MovementType.IN, 10, 15, 25);
+            StockMovementResponse expectedResponse = createStockMovementResponse();
+
+            given(productRepository.findById(productId)).willReturn(Optional.of(product));
+            given(stockMovementRepository.save(any(StockMovement.class))).willReturn(savedMovement);
+            given(productRepository.save(product)).willReturn(product);
+            given(stockMovementMapper.toResponse(savedMovement)).willReturn(expectedResponse);
+
+            // When
+            StockMovementResponse result = stockMovementService.createStockMovement(request);
+
+            // Then
+            assertThat(result).isEqualTo(expectedResponse);
+            assertThat(product.getStockQuantity()).isEqualTo(25);
+            then(productRepository).should().findById(productId);
+            then(productRepository).should().save(product);
+            then(stockMovementRepository).should().save(any(StockMovement.class));
+            then(stockMovementMapper).should().toResponse(savedMovement);
+        }
+
+        @Test
+        @DisplayName("Should create OUT stock movement successfully")
+        void shouldCreateOutStockMovementSuccessfully() {
+            // Given
+            UUID productId = UUID.randomUUID();
+            CreateStockMovementRequest request = new CreateStockMovementRequest(
+                    productId, MovementType.OUT, 5, MovementReason.SALE,
+                    "ORDER-123", "Customer order"
+            );
+
+            Product product = createProductWithStock(20);
+            StockMovement savedMovement = createStockMovementForProduct(product, MovementType.OUT, 5, 20, 15);
+            StockMovementResponse expectedResponse = createStockMovementResponse();
+
+            given(productRepository.findById(productId)).willReturn(Optional.of(product));
+            given(stockMovementRepository.save(any(StockMovement.class))).willReturn(savedMovement);
+            given(productRepository.save(product)).willReturn(product);
+            given(stockMovementMapper.toResponse(savedMovement)).willReturn(expectedResponse);
+
+            // When
+            StockMovementResponse result = stockMovementService.createStockMovement(request);
+
+            // Then
+            assertThat(result).isEqualTo(expectedResponse);
+            assertThat(product.getStockQuantity()).isEqualTo(15);
+            then(productRepository).should().findById(productId);
+            then(productRepository).should().save(product);
+            then(stockMovementRepository).should().save(any(StockMovement.class));
+            then(stockMovementMapper).should().toResponse(savedMovement);
+        }
+
+        @Test
+        @DisplayName("Should handle product with null stock quantity as zero")
+        void shouldHandleProductWithNullStockQuantityAsZero() {
+            // Given
+            UUID productId = UUID.randomUUID();
+            CreateStockMovementRequest request = new CreateStockMovementRequest(
+                    productId, MovementType.IN, 10, MovementReason.ADJUSTMENT,
+                    "ADJ-001", "Initial stock adjustment"
+            );
+
+            Product product = createProductWithStock(null);
+            StockMovement savedMovement = createStockMovementForProduct(product, MovementType.IN, 10, 0, 10);
+            StockMovementResponse expectedResponse = createStockMovementResponse();
+
+            given(productRepository.findById(productId)).willReturn(Optional.of(product));
+            given(stockMovementRepository.save(any(StockMovement.class))).willReturn(savedMovement);
+            given(productRepository.save(product)).willReturn(product);
+            given(stockMovementMapper.toResponse(savedMovement)).willReturn(expectedResponse);
+
+            // When
+            StockMovementResponse result = stockMovementService.createStockMovement(request);
+
+            // Then
+            assertThat(result).isEqualTo(expectedResponse);
+            assertThat(product.getStockQuantity()).isEqualTo(10);
+            then(productRepository).should().findById(productId);
+            then(productRepository).should().save(product);
+            then(stockMovementRepository).should().save(any(StockMovement.class));
+        }
+
+        @Test
+        @DisplayName("Should throw ProductNotFoundException when product does not exist")
+        void shouldThrowProductNotFoundExceptionWhenProductDoesNotExist() {
+            // Given
+            UUID productId = UUID.randomUUID();
+            CreateStockMovementRequest request = new CreateStockMovementRequest(
+                    productId, MovementType.IN, 10, MovementReason.PURCHASE,
+                    "PO-2024-001", "Restocking inventory"
+            );
+
+            given(productRepository.findById(productId)).willReturn(Optional.empty());
+
+            // When & Then
+            assertThatThrownBy(() -> stockMovementService.createStockMovement(request))
+                    .isInstanceOf(ProductNotFoundException.class);
+
+            then(productRepository).should().findById(productId);
+            then(stockMovementRepository).should(never()).save(any());
+            then(productRepository).should(never()).save(any());
+            then(stockMovementMapper).should(never()).toResponse(any());
+        }
+
+        @Test
+        @DisplayName("Should throw ProductNotFoundException when product is inactive")
+        void shouldThrowProductNotFoundExceptionWhenProductIsInactive() {
+            // Given
+            UUID productId = UUID.randomUUID();
+            CreateStockMovementRequest request = new CreateStockMovementRequest(
+                    productId, MovementType.IN, 10, MovementReason.PURCHASE,
+                    "PO-2024-001", "Restocking inventory"
+            );
+
+            Product inactiveProduct = createProductWithStock(15);
+            inactiveProduct.softDelete();
+
+            given(productRepository.findById(productId)).willReturn(Optional.of(inactiveProduct));
+
+            // When & Then
+            assertThatThrownBy(() -> stockMovementService.createStockMovement(request))
+                    .isInstanceOf(ProductNotFoundException.class);
+
+            then(productRepository).should().findById(productId);
+            then(stockMovementRepository).should(never()).save(any());
+            then(productRepository).should(never()).save(any());
+            then(stockMovementMapper).should(never()).toResponse(any());
+        }
+
+        @Test
+        @DisplayName("Should throw InsufficientStockException when OUT movement exceeds available stock")
+        void shouldThrowInsufficientStockExceptionWhenOutMovementExceedsAvailableStock() {
+            // Given
+            UUID productId = UUID.randomUUID();
+            CreateStockMovementRequest request = new CreateStockMovementRequest(
+                    productId, MovementType.OUT, 25, MovementReason.SALE,
+                    "ORDER-123", "Customer order"
+            );
+
+            Product product = createProductWithStock(10);
+            product.setSku("TEST-PRODUCT");
+
+            given(productRepository.findById(productId)).willReturn(Optional.of(product));
+
+            // When & Then
+            assertThatThrownBy(() -> stockMovementService.createStockMovement(request))
+                    .isInstanceOf(InsufficientStockException.class)
+                    .hasMessageContaining("Insufficient stock for product TEST-PRODUCT")
+                    .hasMessageContaining("Current stock: 10")
+                    .hasMessageContaining("requested: 25");
+
+            then(productRepository).should().findById(productId);
+            then(stockMovementRepository).should(never()).save(any());
+            then(productRepository).should(never()).save(any());
+            then(stockMovementMapper).should(never()).toResponse(any());
+        }
+
+        @Test
+        @DisplayName("Should throw InsufficientStockException when OUT movement from zero stock")
+        void shouldThrowInsufficientStockExceptionWhenOutMovementFromZeroStock() {
+            // Given
+            UUID productId = UUID.randomUUID();
+            CreateStockMovementRequest request = new CreateStockMovementRequest(
+                    productId, MovementType.OUT, 1, MovementReason.SALE,
+                    "ORDER-123", "Customer order"
+            );
+
+            Product product = createProductWithStock(null);
+            product.setSku("ZERO-STOCK");
+
+            given(productRepository.findById(productId)).willReturn(Optional.of(product));
+
+            // When & Then
+            assertThatThrownBy(() -> stockMovementService.createStockMovement(request))
+                    .isInstanceOf(InsufficientStockException.class)
+                    .hasMessageContaining("Insufficient stock for product ZERO-STOCK")
+                    .hasMessageContaining("Current stock: 0")
+                    .hasMessageContaining("requested: 1");
+
+            then(productRepository).should().findById(productId);
+            then(stockMovementRepository).should(never()).save(any());
+            then(productRepository).should(never()).save(any());
+        }
+
+        @Test
+        @DisplayName("Should allow OUT movement that results in exactly zero stock")
+        void shouldAllowOutMovementThatResultsInExactlyZeroStock() {
+            // Given
+            UUID productId = UUID.randomUUID();
+            CreateStockMovementRequest request = new CreateStockMovementRequest(
+                    productId, MovementType.OUT, 10, MovementReason.SALE,
+                    "ORDER-123", "Final sale"
+            );
+
+            Product product = createProductWithStock(10);
+            StockMovement savedMovement = createStockMovementForProduct(product, MovementType.OUT, 10, 10, 0);
+            StockMovementResponse expectedResponse = createStockMovementResponse();
+
+            given(productRepository.findById(productId)).willReturn(Optional.of(product));
+            given(stockMovementRepository.save(any(StockMovement.class))).willReturn(savedMovement);
+            given(productRepository.save(product)).willReturn(product);
+            given(stockMovementMapper.toResponse(savedMovement)).willReturn(expectedResponse);
+
+            // When
+            StockMovementResponse result = stockMovementService.createStockMovement(request);
+
+            // Then
+            assertThat(result).isEqualTo(expectedResponse);
+            assertThat(product.getStockQuantity()).isEqualTo(0);
+            then(productRepository).should().findById(productId);
+            then(productRepository).should().save(product);
+            then(stockMovementRepository).should().save(any(StockMovement.class));
+        }
+
+        @Test
+        @DisplayName("Should handle different movement reasons correctly")
+        void shouldHandleDifferentMovementReasonsCorrectly() {
+            // Given
+            UUID productId = UUID.randomUUID();
+            CreateStockMovementRequest adjustmentRequest = new CreateStockMovementRequest(
+                    productId, MovementType.IN, 5, MovementReason.ADJUSTMENT,
+                    "ADJ-001", "Stock count adjustment"
+            );
+
+            Product product = createProductWithStock(10);
+            StockMovement savedMovement = createStockMovementForProduct(product, MovementType.IN, 5, 10, 15);
+            savedMovement.setReason(MovementReason.ADJUSTMENT);
+            StockMovementResponse expectedResponse = createStockMovementResponse();
+
+            given(productRepository.findById(productId)).willReturn(Optional.of(product));
+            given(stockMovementRepository.save(any(StockMovement.class))).willReturn(savedMovement);
+            given(productRepository.save(product)).willReturn(product);
+            given(stockMovementMapper.toResponse(savedMovement)).willReturn(expectedResponse);
+
+            // When
+            StockMovementResponse result = stockMovementService.createStockMovement(adjustmentRequest);
+
+            // Then
+            assertThat(result).isEqualTo(expectedResponse);
+            then(productRepository).should().findById(productId);
+            then(stockMovementRepository).should().save(any(StockMovement.class));
+        }
+
+        @Test
+        @DisplayName("Should handle return movement type correctly")
+        void shouldHandleReturnMovementTypeCorrectly() {
+            // Given
+            UUID productId = UUID.randomUUID();
+            CreateStockMovementRequest returnRequest = new CreateStockMovementRequest(
+                    productId, MovementType.IN, 3, MovementReason.RETURN,
+                    "RET-456", "Customer return"
+            );
+
+            Product product = createProductWithStock(12);
+            StockMovement savedMovement = createStockMovementForProduct(product, MovementType.IN, 3, 12, 15);
+            savedMovement.setReason(MovementReason.RETURN);
+            StockMovementResponse expectedResponse = createStockMovementResponse();
+
+            given(productRepository.findById(productId)).willReturn(Optional.of(product));
+            given(stockMovementRepository.save(any(StockMovement.class))).willReturn(savedMovement);
+            given(productRepository.save(product)).willReturn(product);
+            given(stockMovementMapper.toResponse(savedMovement)).willReturn(expectedResponse);
+
+            // When
+            StockMovementResponse result = stockMovementService.createStockMovement(returnRequest);
+
+            // Then
+            assertThat(result).isEqualTo(expectedResponse);
+            assertThat(product.getStockQuantity()).isEqualTo(15);
+            then(productRepository).should().findById(productId);
+            then(stockMovementRepository).should().save(any(StockMovement.class));
+        }
+
+        @Test
+        @DisplayName("Should create stock movement with optional fields as null")
+        void shouldCreateStockMovementWithOptionalFieldsAsNull() {
+            // Given
+            UUID productId = UUID.randomUUID();
+            CreateStockMovementRequest request = new CreateStockMovementRequest(
+                    productId, MovementType.IN, 8, MovementReason.PURCHASE,
+                    null, null // reference and notes are null
+            );
+
+            Product product = createProductWithStock(7);
+            StockMovement savedMovement = createStockMovementForProduct(product, MovementType.IN, 8, 7, 15);
+            savedMovement.setReference(null);
+            savedMovement.setNotes(null);
+            StockMovementResponse expectedResponse = createStockMovementResponse();
+
+            given(productRepository.findById(productId)).willReturn(Optional.of(product));
+            given(stockMovementRepository.save(any(StockMovement.class))).willReturn(savedMovement);
+            given(productRepository.save(product)).willReturn(product);
+            given(stockMovementMapper.toResponse(savedMovement)).willReturn(expectedResponse);
+
+            // When
+            StockMovementResponse result = stockMovementService.createStockMovement(request);
+
+            // Then
+            assertThat(result).isEqualTo(expectedResponse);
+            assertThat(product.getStockQuantity()).isEqualTo(15);
+            then(productRepository).should().findById(productId);
+            then(stockMovementRepository).should().save(any(StockMovement.class));
+        }
+    }
+
     private Product createProduct() {
         Product product = new Product();
         product.setId(UUID.randomUUID());
@@ -211,6 +541,28 @@ class StockMovementServiceTest {
         product.setMinStockLevel(5);
         product.setCategory("electronics");
         return product;
+    }
+
+    private Product createProductWithStock(Integer stockQuantity) {
+        Product product = createProduct();
+        product.setStockQuantity(stockQuantity);
+        return product;
+    }
+
+    private StockMovement createStockMovementForProduct(Product product, MovementType movementType, 
+                                                        Integer quantity, Integer previousStock, Integer newStock) {
+        StockMovement stockMovement = new StockMovement();
+        stockMovement.setId(UUID.randomUUID());
+        stockMovement.setProduct(product);
+        stockMovement.setMovementType(movementType);
+        stockMovement.setQuantity(quantity);
+        stockMovement.setPreviousStock(previousStock);
+        stockMovement.setNewStock(newStock);
+        stockMovement.setReason(MovementReason.PURCHASE);
+        stockMovement.setReference("REF-001");
+        stockMovement.setNotes("Test movement");
+        stockMovement.setCreatedBy("system");
+        return stockMovement;
     }
 
     private StockMovement createStockMovement() {
