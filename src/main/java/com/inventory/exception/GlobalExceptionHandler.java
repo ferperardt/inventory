@@ -7,6 +7,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
@@ -84,6 +85,27 @@ public class GlobalExceptionHandler {
         errors.put("error", "Validation Failed");
         errors.put("message", "Request parameter validation failed");
         errors.put("fieldErrors", fieldErrors);
+
+        return ResponseEntity.badRequest().body(errors);
+    }
+
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<Map<String, Object>> handleMethodArgumentTypeMismatchException(MethodArgumentTypeMismatchException ex) {
+        Map<String, Object> errors = new HashMap<>();
+        String fieldName = ex.getName();
+        String fieldValue = String.valueOf(ex.getValue());
+        String requiredType = ex.getRequiredType() != null ? ex.getRequiredType().getSimpleName() : "Unknown";
+        
+        String message = String.format("Invalid value '%s' for parameter '%s'. Expected type: %s", 
+                fieldValue, fieldName, requiredType);
+
+        errors.put("timestamp", LocalDateTime.now());
+        errors.put("status", HttpStatus.BAD_REQUEST.value());
+        errors.put("error", "Invalid Parameter");
+        errors.put("message", message);
+        errors.put("parameter", fieldName);
+        errors.put("invalidValue", fieldValue);
+        errors.put("expectedType", requiredType);
 
         return ResponseEntity.badRequest().body(errors);
     }

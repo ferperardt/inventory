@@ -224,11 +224,17 @@ class ProductControllerTest {
         }
 
         @Test
-        @DisplayName("Should return 500 for invalid UUID")
-        void shouldReturn500ForInvalidUuid() throws Exception {
+        @DisplayName("Should return 400 for invalid UUID")
+        void shouldReturn400ForInvalidUuid() throws Exception {
             // When & Then
             mockMvc.perform(get("/api/v1/products/{id}", "invalid-uuid"))
-                    .andExpect(status().isInternalServerError());
+                    .andExpect(status().isBadRequest())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.status").value(400))
+                    .andExpect(jsonPath("$.error").value("Invalid Parameter"))
+                    .andExpect(jsonPath("$.parameter").value("id"))
+                    .andExpect(jsonPath("$.invalidValue").value("invalid-uuid"))
+                    .andExpect(jsonPath("$.expectedType").value("UUID"));
         }
     }
 
@@ -338,6 +344,28 @@ class ProductControllerTest {
                             .content(objectMapper.writeValueAsString(invalidRequest)))
                     .andExpect(status().isBadRequest());
         }
+
+        @Test
+        @DisplayName("Should return 400 for invalid UUID")
+        void shouldReturn400ForInvalidUuid() throws Exception {
+            // Given
+            UpdateProductRequest request = new UpdateProductRequest(
+                    "Valid Product", "Description", "VALID-SKU",
+                    BigDecimal.valueOf(100.00), 10, 5, "electronics"
+            );
+
+            // When & Then
+            mockMvc.perform(put("/api/v1/products/{id}", "invalid-uuid")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(request)))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.status").value(400))
+                    .andExpect(jsonPath("$.error").value("Invalid Parameter"))
+                    .andExpect(jsonPath("$.parameter").value("id"))
+                    .andExpect(jsonPath("$.invalidValue").value("invalid-uuid"))
+                    .andExpect(jsonPath("$.expectedType").value("UUID"));
+        }
     }
 
     @Nested
@@ -352,7 +380,8 @@ class ProductControllerTest {
 
             // When & Then
             mockMvc.perform(delete("/api/v1/products/{id}", productId))
-                    .andExpect(status().isNoContent());
+                    .andExpect(status().isNoContent())
+                    .andExpect(content().string(""));
 
             then(productService).should().deleteProduct(productId);
         }
@@ -369,6 +398,20 @@ class ProductControllerTest {
             // When & Then
             mockMvc.perform(delete("/api/v1/products/{id}", productId))
                     .andExpect(status().isNotFound());
+        }
+
+        @Test
+        @DisplayName("Should return 400 for invalid UUID")
+        void shouldReturn400ForInvalidUuid() throws Exception {
+            // When & Then
+            mockMvc.perform(delete("/api/v1/products/{id}", "invalid-uuid"))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.status").value(400))
+                    .andExpect(jsonPath("$.error").value("Invalid Parameter"))
+                    .andExpect(jsonPath("$.parameter").value("id"))
+                    .andExpect(jsonPath("$.invalidValue").value("invalid-uuid"))
+                    .andExpect(jsonPath("$.expectedType").value("UUID"));
         }
     }
 
