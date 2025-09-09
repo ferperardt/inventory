@@ -14,12 +14,14 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentMatchers;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -29,6 +31,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.never;
@@ -437,6 +440,471 @@ class SupplierServiceTest {
             then(supplierMapper).should().toResponse(supplier1);
             then(supplierMapper).should().toResponse(supplier2);
             then(supplierMapper).should().toResponse(supplier3);
+        }
+    }
+
+    @Nested
+    @DisplayName("searchSuppliers() Tests")
+    class SearchSuppliersTests {
+
+        @Test
+        @DisplayName("Should search suppliers with all filters")
+        void shouldSearchSuppliersWithAllFilters() {
+            // Given
+            Pageable pageable = PageRequest.of(0, 20);
+            Supplier supplier = createSupplier();
+            SupplierResponse supplierResponse = createSupplierResponse();
+            Page<Supplier> supplierPage = new PageImpl<>(List.of(supplier), pageable, 1);
+
+            given(supplierRepository.findAll(ArgumentMatchers.<Specification<Supplier>>any(), eq(pageable)))
+                    .willReturn(supplierPage);
+            given(supplierMapper.toResponse(supplier)).willReturn(supplierResponse);
+
+            // When
+            Page<SupplierResponse> result = supplierService.searchSuppliers(
+                    "ABC Electronics", "contact@abc.com", "Tech City", "USA",
+                    SupplierStatus.ACTIVE, SupplierType.DOMESTIC, 
+                    BigDecimal.valueOf(4.0), BigDecimal.valueOf(5.0), 5, 10, pageable
+            );
+
+            // Then
+            assertThat(result.getContent()).containsExactly(supplierResponse);
+            assertThat(result.getTotalElements()).isEqualTo(1);
+            then(supplierRepository).should().findAll(ArgumentMatchers.<Specification<Supplier>>any(), eq(pageable));
+            then(supplierMapper).should().toResponse(supplier);
+        }
+
+        @Test
+        @DisplayName("Should search suppliers with no filters - only active filter applied")
+        void shouldSearchSuppliersWithNoFiltersOnlyActiveFilterApplied() {
+            // Given
+            Pageable pageable = PageRequest.of(0, 20);
+            Supplier supplier = createSupplier();
+            SupplierResponse supplierResponse = createSupplierResponse();
+            Page<Supplier> supplierPage = new PageImpl<>(List.of(supplier), pageable, 1);
+
+            given(supplierRepository.findAll(ArgumentMatchers.<Specification<Supplier>>any(), eq(pageable)))
+                    .willReturn(supplierPage);
+            given(supplierMapper.toResponse(supplier)).willReturn(supplierResponse);
+
+            // When
+            Page<SupplierResponse> result = supplierService.searchSuppliers(
+                    null, null, null, null, null, null, null, null, null, null, pageable
+            );
+
+            // Then
+            assertThat(result.getContent()).containsExactly(supplierResponse);
+            then(supplierRepository).should().findAll(ArgumentMatchers.<Specification<Supplier>>any(), eq(pageable));
+        }
+
+        @Test
+        @DisplayName("Should search suppliers by name only")
+        void shouldSearchSuppliersByNameOnly() {
+            // Given
+            Pageable pageable = PageRequest.of(0, 20);
+            Supplier supplier = createSupplier();
+            SupplierResponse supplierResponse = createSupplierResponse();
+            Page<Supplier> supplierPage = new PageImpl<>(List.of(supplier), pageable, 1);
+
+            given(supplierRepository.findAll(ArgumentMatchers.<Specification<Supplier>>any(), eq(pageable)))
+                    .willReturn(supplierPage);
+            given(supplierMapper.toResponse(supplier)).willReturn(supplierResponse);
+
+            // When
+            Page<SupplierResponse> result = supplierService.searchSuppliers(
+                    "ABC Electronics", null, null, null, null, null, null, null, null, null, pageable
+            );
+
+            // Then
+            assertThat(result.getContent()).containsExactly(supplierResponse);
+            then(supplierRepository).should().findAll(ArgumentMatchers.<Specification<Supplier>>any(), eq(pageable));
+        }
+
+        @Test
+        @DisplayName("Should search suppliers by email only")
+        void shouldSearchSuppliersByEmailOnly() {
+            // Given
+            Pageable pageable = PageRequest.of(0, 20);
+            Supplier supplier = createSupplier();
+            SupplierResponse supplierResponse = createSupplierResponse();
+            Page<Supplier> supplierPage = new PageImpl<>(List.of(supplier), pageable, 1);
+
+            given(supplierRepository.findAll(ArgumentMatchers.<Specification<Supplier>>any(), eq(pageable)))
+                    .willReturn(supplierPage);
+            given(supplierMapper.toResponse(supplier)).willReturn(supplierResponse);
+
+            // When
+            Page<SupplierResponse> result = supplierService.searchSuppliers(
+                    null, "abc@electronics.com", null, null, null, null, null, null, null, null, pageable
+            );
+
+            // Then
+            assertThat(result.getContent()).containsExactly(supplierResponse);
+            then(supplierRepository).should().findAll(ArgumentMatchers.<Specification<Supplier>>any(), eq(pageable));
+        }
+
+        @Test
+        @DisplayName("Should search suppliers by city and country")
+        void shouldSearchSuppliersByCityAndCountry() {
+            // Given
+            Pageable pageable = PageRequest.of(0, 20);
+            Supplier supplier = createSupplier();
+            SupplierResponse supplierResponse = createSupplierResponse();
+            Page<Supplier> supplierPage = new PageImpl<>(List.of(supplier), pageable, 1);
+
+            given(supplierRepository.findAll(ArgumentMatchers.<Specification<Supplier>>any(), eq(pageable)))
+                    .willReturn(supplierPage);
+            given(supplierMapper.toResponse(supplier)).willReturn(supplierResponse);
+
+            // When
+            Page<SupplierResponse> result = supplierService.searchSuppliers(
+                    null, null, "Tech City", "USA", null, null, null, null, null, null, pageable
+            );
+
+            // Then
+            assertThat(result.getContent()).containsExactly(supplierResponse);
+            then(supplierRepository).should().findAll(ArgumentMatchers.<Specification<Supplier>>any(), eq(pageable));
+        }
+
+        @Test
+        @DisplayName("Should search suppliers by status only")
+        void shouldSearchSuppliersByStatusOnly() {
+            // Given
+            Pageable pageable = PageRequest.of(0, 20);
+            Supplier supplier = createSupplier();
+            supplier.setStatus(SupplierStatus.INACTIVE);
+            SupplierResponse supplierResponse = createSupplierResponse();
+            Page<Supplier> supplierPage = new PageImpl<>(List.of(supplier), pageable, 1);
+
+            given(supplierRepository.findAll(ArgumentMatchers.<Specification<Supplier>>any(), eq(pageable)))
+                    .willReturn(supplierPage);
+            given(supplierMapper.toResponse(supplier)).willReturn(supplierResponse);
+
+            // When
+            Page<SupplierResponse> result = supplierService.searchSuppliers(
+                    null, null, null, null, SupplierStatus.INACTIVE, null, null, null, null, null, pageable
+            );
+
+            // Then
+            assertThat(result.getContent()).containsExactly(supplierResponse);
+            then(supplierRepository).should().findAll(ArgumentMatchers.<Specification<Supplier>>any(), eq(pageable));
+        }
+
+        @Test
+        @DisplayName("Should search suppliers by supplier type only")
+        void shouldSearchSuppliersBySupplierTypeOnly() {
+            // Given
+            Pageable pageable = PageRequest.of(0, 20);
+            Supplier supplier = createSupplier();
+            supplier.setSupplierType(SupplierType.INTERNATIONAL);
+            SupplierResponse supplierResponse = createSupplierResponse();
+            Page<Supplier> supplierPage = new PageImpl<>(List.of(supplier), pageable, 1);
+
+            given(supplierRepository.findAll(ArgumentMatchers.<Specification<Supplier>>any(), eq(pageable)))
+                    .willReturn(supplierPage);
+            given(supplierMapper.toResponse(supplier)).willReturn(supplierResponse);
+
+            // When
+            Page<SupplierResponse> result = supplierService.searchSuppliers(
+                    null, null, null, null, null, SupplierType.INTERNATIONAL, null, null, null, null, pageable
+            );
+
+            // Then
+            assertThat(result.getContent()).containsExactly(supplierResponse);
+            then(supplierRepository).should().findAll(ArgumentMatchers.<Specification<Supplier>>any(), eq(pageable));
+        }
+
+        @Test
+        @DisplayName("Should search suppliers by rating range")
+        void shouldSearchSuppliersByRatingRange() {
+            // Given
+            Pageable pageable = PageRequest.of(0, 20);
+            Supplier supplier = createSupplier();
+            SupplierResponse supplierResponse = createSupplierResponse();
+            Page<Supplier> supplierPage = new PageImpl<>(List.of(supplier), pageable, 1);
+
+            given(supplierRepository.findAll(ArgumentMatchers.<Specification<Supplier>>any(), eq(pageable)))
+                    .willReturn(supplierPage);
+            given(supplierMapper.toResponse(supplier)).willReturn(supplierResponse);
+
+            // When
+            Page<SupplierResponse> result = supplierService.searchSuppliers(
+                    null, null, null, null, null, null, 
+                    BigDecimal.valueOf(4.0), BigDecimal.valueOf(5.0), null, null, pageable
+            );
+
+            // Then
+            assertThat(result.getContent()).containsExactly(supplierResponse);
+            then(supplierRepository).should().findAll(ArgumentMatchers.<Specification<Supplier>>any(), eq(pageable));
+        }
+
+        @Test
+        @DisplayName("Should search suppliers by min rating only")
+        void shouldSearchSuppliersByMinRatingOnly() {
+            // Given
+            Pageable pageable = PageRequest.of(0, 20);
+            Supplier supplier = createSupplier();
+            SupplierResponse supplierResponse = createSupplierResponse();
+            Page<Supplier> supplierPage = new PageImpl<>(List.of(supplier), pageable, 1);
+
+            given(supplierRepository.findAll(ArgumentMatchers.<Specification<Supplier>>any(), eq(pageable)))
+                    .willReturn(supplierPage);
+            given(supplierMapper.toResponse(supplier)).willReturn(supplierResponse);
+
+            // When
+            Page<SupplierResponse> result = supplierService.searchSuppliers(
+                    null, null, null, null, null, null, 
+                    BigDecimal.valueOf(4.0), null, null, null, pageable
+            );
+
+            // Then
+            assertThat(result.getContent()).containsExactly(supplierResponse);
+            then(supplierRepository).should().findAll(ArgumentMatchers.<Specification<Supplier>>any(), eq(pageable));
+        }
+
+        @Test
+        @DisplayName("Should search suppliers by max rating only")
+        void shouldSearchSuppliersByMaxRatingOnly() {
+            // Given
+            Pageable pageable = PageRequest.of(0, 20);
+            Supplier supplier = createSupplier();
+            SupplierResponse supplierResponse = createSupplierResponse();
+            Page<Supplier> supplierPage = new PageImpl<>(List.of(supplier), pageable, 1);
+
+            given(supplierRepository.findAll(ArgumentMatchers.<Specification<Supplier>>any(), eq(pageable)))
+                    .willReturn(supplierPage);
+            given(supplierMapper.toResponse(supplier)).willReturn(supplierResponse);
+
+            // When
+            Page<SupplierResponse> result = supplierService.searchSuppliers(
+                    null, null, null, null, null, null, 
+                    null, BigDecimal.valueOf(5.0), null, null, pageable
+            );
+
+            // Then
+            assertThat(result.getContent()).containsExactly(supplierResponse);
+            then(supplierRepository).should().findAll(ArgumentMatchers.<Specification<Supplier>>any(), eq(pageable));
+        }
+
+        @Test
+        @DisplayName("Should search suppliers by delivery days range")
+        void shouldSearchSuppliersByDeliveryDaysRange() {
+            // Given
+            Pageable pageable = PageRequest.of(0, 20);
+            Supplier supplier = createSupplier();
+            SupplierResponse supplierResponse = createSupplierResponse();
+            Page<Supplier> supplierPage = new PageImpl<>(List.of(supplier), pageable, 1);
+
+            given(supplierRepository.findAll(ArgumentMatchers.<Specification<Supplier>>any(), eq(pageable)))
+                    .willReturn(supplierPage);
+            given(supplierMapper.toResponse(supplier)).willReturn(supplierResponse);
+
+            // When
+            Page<SupplierResponse> result = supplierService.searchSuppliers(
+                    null, null, null, null, null, null, null, null, 5, 10, pageable
+            );
+
+            // Then
+            assertThat(result.getContent()).containsExactly(supplierResponse);
+            then(supplierRepository).should().findAll(ArgumentMatchers.<Specification<Supplier>>any(), eq(pageable));
+        }
+
+        @Test
+        @DisplayName("Should search suppliers by min delivery days only")
+        void shouldSearchSuppliersByMinDeliveryDaysOnly() {
+            // Given
+            Pageable pageable = PageRequest.of(0, 20);
+            Supplier supplier = createSupplier();
+            SupplierResponse supplierResponse = createSupplierResponse();
+            Page<Supplier> supplierPage = new PageImpl<>(List.of(supplier), pageable, 1);
+
+            given(supplierRepository.findAll(ArgumentMatchers.<Specification<Supplier>>any(), eq(pageable)))
+                    .willReturn(supplierPage);
+            given(supplierMapper.toResponse(supplier)).willReturn(supplierResponse);
+
+            // When
+            Page<SupplierResponse> result = supplierService.searchSuppliers(
+                    null, null, null, null, null, null, null, null, 5, null, pageable
+            );
+
+            // Then
+            assertThat(result.getContent()).containsExactly(supplierResponse);
+            then(supplierRepository).should().findAll(ArgumentMatchers.<Specification<Supplier>>any(), eq(pageable));
+        }
+
+        @Test
+        @DisplayName("Should search suppliers by max delivery days only")
+        void shouldSearchSuppliersByMaxDeliveryDaysOnly() {
+            // Given
+            Pageable pageable = PageRequest.of(0, 20);
+            Supplier supplier = createSupplier();
+            SupplierResponse supplierResponse = createSupplierResponse();
+            Page<Supplier> supplierPage = new PageImpl<>(List.of(supplier), pageable, 1);
+
+            given(supplierRepository.findAll(ArgumentMatchers.<Specification<Supplier>>any(), eq(pageable)))
+                    .willReturn(supplierPage);
+            given(supplierMapper.toResponse(supplier)).willReturn(supplierResponse);
+
+            // When
+            Page<SupplierResponse> result = supplierService.searchSuppliers(
+                    null, null, null, null, null, null, null, null, null, 10, pageable
+            );
+
+            // Then
+            assertThat(result.getContent()).containsExactly(supplierResponse);
+            then(supplierRepository).should().findAll(ArgumentMatchers.<Specification<Supplier>>any(), eq(pageable));
+        }
+
+        @Test
+        @DisplayName("Should return empty page when no suppliers match criteria")
+        void shouldReturnEmptyPageWhenNoSuppliersMatchCriteria() {
+            // Given
+            Pageable pageable = PageRequest.of(0, 20);
+            Page<Supplier> emptyPage = new PageImpl<>(List.of(), pageable, 0);
+
+            given(supplierRepository.findAll(ArgumentMatchers.<Specification<Supplier>>any(), eq(pageable)))
+                    .willReturn(emptyPage);
+
+            // When
+            Page<SupplierResponse> result = supplierService.searchSuppliers(
+                    "NonExistentSupplier", null, null, null, null, null, null, null, null, null, pageable
+            );
+
+            // Then
+            assertThat(result.getContent()).isEmpty();
+            assertThat(result.getTotalElements()).isEqualTo(0);
+            then(supplierRepository).should().findAll(ArgumentMatchers.<Specification<Supplier>>any(), eq(pageable));
+        }
+
+        @Test
+        @DisplayName("Should handle multiple suppliers in search results")
+        void shouldHandleMultipleSuppliersInSearchResults() {
+            // Given
+            Pageable pageable = PageRequest.of(0, 10);
+            Supplier supplier1 = createSupplier("ABC Electronics");
+            Supplier supplier2 = createSupplier("ABC Components");
+            SupplierResponse response1 = createSupplierResponse("ABC Electronics");
+            SupplierResponse response2 = createSupplierResponse("ABC Components");
+            Page<Supplier> supplierPage = new PageImpl<>(List.of(supplier1, supplier2), pageable, 2);
+
+            given(supplierRepository.findAll(ArgumentMatchers.<Specification<Supplier>>any(), eq(pageable)))
+                    .willReturn(supplierPage);
+            given(supplierMapper.toResponse(supplier1)).willReturn(response1);
+            given(supplierMapper.toResponse(supplier2)).willReturn(response2);
+
+            // When
+            Page<SupplierResponse> result = supplierService.searchSuppliers(
+                    "ABC", null, null, null, null, null, null, null, null, null, pageable
+            );
+
+            // Then
+            assertThat(result.getContent()).hasSize(2);
+            assertThat(result.getContent()).containsExactly(response1, response2);
+            assertThat(result.getTotalElements()).isEqualTo(2);
+            then(supplierMapper).should().toResponse(supplier1);
+            then(supplierMapper).should().toResponse(supplier2);
+        }
+
+        @Test
+        @DisplayName("Should handle pagination correctly")
+        void shouldHandlePaginationCorrectly() {
+            // Given
+            Pageable pageable = PageRequest.of(1, 5);
+            Supplier supplier = createSupplier();
+            SupplierResponse supplierResponse = createSupplierResponse();
+            Page<Supplier> supplierPage = new PageImpl<>(List.of(supplier), pageable, 15);
+
+            given(supplierRepository.findAll(ArgumentMatchers.<Specification<Supplier>>any(), eq(pageable)))
+                    .willReturn(supplierPage);
+            given(supplierMapper.toResponse(supplier)).willReturn(supplierResponse);
+
+            // When
+            Page<SupplierResponse> result = supplierService.searchSuppliers(
+                    null, null, null, null, null, null, null, null, null, null, pageable
+            );
+
+            // Then
+            assertThat(result.getContent()).containsExactly(supplierResponse);
+            assertThat(result.getTotalElements()).isEqualTo(15);
+            assertThat(result.getTotalPages()).isEqualTo(3);
+            assertThat(result.getSize()).isEqualTo(5);
+            assertThat(result.getNumber()).isEqualTo(1);
+        }
+
+        @Test
+        @DisplayName("Should ignore empty and null string filters")
+        void shouldIgnoreEmptyAndNullStringFilters() {
+            // Given
+            Pageable pageable = PageRequest.of(0, 20);
+            Supplier supplier = createSupplier();
+            SupplierResponse supplierResponse = createSupplierResponse();
+            Page<Supplier> supplierPage = new PageImpl<>(List.of(supplier), pageable, 1);
+
+            given(supplierRepository.findAll(ArgumentMatchers.<Specification<Supplier>>any(), eq(pageable)))
+                    .willReturn(supplierPage);
+            given(supplierMapper.toResponse(supplier)).willReturn(supplierResponse);
+
+            // When - test with empty strings and whitespace
+            Page<SupplierResponse> result = supplierService.searchSuppliers(
+                    "", "   ", null, "", null, null, null, null, null, null, pageable
+            );
+
+            // Then
+            assertThat(result.getContent()).containsExactly(supplierResponse);
+            then(supplierRepository).should().findAll(ArgumentMatchers.<Specification<Supplier>>any(), eq(pageable));
+        }
+
+        @Test
+        @DisplayName("Should search with mixed criteria combination")
+        void shouldSearchWithMixedCriteriaCombination() {
+            // Given
+            Pageable pageable = PageRequest.of(0, 20);
+            Supplier supplier = createSupplier();
+            SupplierResponse supplierResponse = createSupplierResponse();
+            Page<Supplier> supplierPage = new PageImpl<>(List.of(supplier), pageable, 1);
+
+            given(supplierRepository.findAll(ArgumentMatchers.<Specification<Supplier>>any(), eq(pageable)))
+                    .willReturn(supplierPage);
+            given(supplierMapper.toResponse(supplier)).willReturn(supplierResponse);
+
+            // When
+            Page<SupplierResponse> result = supplierService.searchSuppliers(
+                    "ABC", null, "Tech City", null, SupplierStatus.ACTIVE, null,
+                    BigDecimal.valueOf(4.0), null, null, 10, pageable
+            );
+
+            // Then
+            assertThat(result.getContent()).containsExactly(supplierResponse);
+            then(supplierRepository).should().findAll(ArgumentMatchers.<Specification<Supplier>>any(), eq(pageable));
+        }
+
+        @Test
+        @DisplayName("Should preserve page metadata from repository result")
+        void shouldPreservePageMetadataFromRepositoryResult() {
+            // Given
+            Pageable pageable = PageRequest.of(2, 10);
+            Supplier supplier = createSupplier();
+            SupplierResponse supplierResponse = createSupplierResponse();
+            Page<Supplier> supplierPage = new PageImpl<>(List.of(supplier), pageable, 35);
+
+            given(supplierRepository.findAll(ArgumentMatchers.<Specification<Supplier>>any(), eq(pageable)))
+                    .willReturn(supplierPage);
+            given(supplierMapper.toResponse(supplier)).willReturn(supplierResponse);
+
+            // When
+            Page<SupplierResponse> result = supplierService.searchSuppliers(
+                    null, null, null, null, null, null, null, null, null, null, pageable
+            );
+
+            // Then
+            assertThat(result.getTotalElements()).isEqualTo(35);
+            assertThat(result.getTotalPages()).isEqualTo(4);
+            assertThat(result.getSize()).isEqualTo(10);
+            assertThat(result.getNumber()).isEqualTo(2);
+            assertThat(result.isFirst()).isFalse();
+            assertThat(result.isLast()).isFalse();
+            assertThat(result.hasNext()).isTrue();
+            assertThat(result.hasPrevious()).isTrue();
         }
     }
 

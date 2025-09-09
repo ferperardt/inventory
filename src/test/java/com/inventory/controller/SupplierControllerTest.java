@@ -522,6 +522,346 @@ class SupplierControllerTest {
         }
     }
 
+    @Nested
+    @DisplayName("GET /api/v1/suppliers/search")
+    class SearchSuppliersTests {
+
+        @Test
+        @DisplayName("Should search suppliers with all filters")
+        void shouldSearchSuppliersWithAllFilters() throws Exception {
+            // Given
+            SupplierResponse supplier = createCompleteSupplierResponse();
+            Page<SupplierResponse> page = new PageImpl<>(List.of(supplier), PageRequest.of(0, 20), 1);
+
+            given(supplierService.searchSuppliers(
+                    eq("ABC Electronics"), eq("contact@abcelectronics.com"), eq("Tech City"), 
+                    eq("USA"), eq(SupplierStatus.ACTIVE), eq(SupplierType.DOMESTIC), 
+                    eq(BigDecimal.valueOf(4.0)), eq(BigDecimal.valueOf(5.0)), 
+                    eq(5), eq(10), any(Pageable.class)
+            )).willReturn(page);
+
+            // When & Then
+            mockMvc.perform(get("/api/v1/suppliers/search")
+                            .param("name", "ABC Electronics")
+                            .param("email", "contact@abcelectronics.com")
+                            .param("city", "Tech City")
+                            .param("country", "USA")
+                            .param("status", "ACTIVE")
+                            .param("supplierType", "DOMESTIC")
+                            .param("minRating", "4.0")
+                            .param("maxRating", "5.0")
+                            .param("minDeliveryDays", "5")
+                            .param("maxDeliveryDays", "10"))
+                    .andExpect(status().isOk())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.content[0].name").value("ABC Electronics Ltd"))
+                    .andExpect(jsonPath("$.content[0].status").value("ACTIVE"))
+                    .andExpect(jsonPath("$.content[0].supplierType").value("DOMESTIC"))
+                    .andExpect(jsonPath("$.totalElements").value(1));
+        }
+
+        @Test
+        @DisplayName("Should search suppliers without any filters")
+        void shouldSearchSuppliersWithoutAnyFilters() throws Exception {
+            // Given
+            SupplierResponse supplier = createCompleteSupplierResponse();
+            Page<SupplierResponse> page = new PageImpl<>(List.of(supplier), PageRequest.of(0, 20), 1);
+
+            given(supplierService.searchSuppliers(
+                    eq(null), eq(null), eq(null), eq(null), eq(null), eq(null),
+                    eq(null), eq(null), eq(null), eq(null), any(Pageable.class)
+            )).willReturn(page);
+
+            // When & Then
+            mockMvc.perform(get("/api/v1/suppliers/search"))
+                    .andExpect(status().isOk())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.content[0].name").value("ABC Electronics Ltd"));
+        }
+
+        @Test
+        @DisplayName("Should search suppliers by name only")
+        void shouldSearchSuppliersByNameOnly() throws Exception {
+            // Given
+            SupplierResponse supplier = createCompleteSupplierResponse();
+            Page<SupplierResponse> page = new PageImpl<>(List.of(supplier), PageRequest.of(0, 20), 1);
+
+            given(supplierService.searchSuppliers(
+                    eq("ABC"), eq(null), eq(null), eq(null), eq(null), eq(null),
+                    eq(null), eq(null), eq(null), eq(null), any(Pageable.class)
+            )).willReturn(page);
+
+            // When & Then
+            mockMvc.perform(get("/api/v1/suppliers/search")
+                            .param("name", "ABC"))
+                    .andExpect(status().isOk())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.content[0].name").value("ABC Electronics Ltd"));
+        }
+
+        @Test
+        @DisplayName("Should search suppliers by email only")
+        void shouldSearchSuppliersByEmailOnly() throws Exception {
+            // Given
+            SupplierResponse supplier = createCompleteSupplierResponse();
+            Page<SupplierResponse> page = new PageImpl<>(List.of(supplier), PageRequest.of(0, 20), 1);
+
+            given(supplierService.searchSuppliers(
+                    eq(null), eq("abcelectronics"), eq(null), eq(null), eq(null), eq(null),
+                    eq(null), eq(null), eq(null), eq(null), any(Pageable.class)
+            )).willReturn(page);
+
+            // When & Then
+            mockMvc.perform(get("/api/v1/suppliers/search")
+                            .param("email", "abcelectronics"))
+                    .andExpect(status().isOk())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.content[0].email").value("contact@abcelectronics.com"));
+        }
+
+        @Test
+        @DisplayName("Should search suppliers by city and country")
+        void shouldSearchSuppliersByCityAndCountry() throws Exception {
+            // Given
+            SupplierResponse supplier = createCompleteSupplierResponse();
+            Page<SupplierResponse> page = new PageImpl<>(List.of(supplier), PageRequest.of(0, 20), 1);
+
+            given(supplierService.searchSuppliers(
+                    eq(null), eq(null), eq("Tech City"), eq("USA"), eq(null), eq(null),
+                    eq(null), eq(null), eq(null), eq(null), any(Pageable.class)
+            )).willReturn(page);
+
+            // When & Then
+            mockMvc.perform(get("/api/v1/suppliers/search")
+                            .param("city", "Tech City")
+                            .param("country", "USA"))
+                    .andExpect(status().isOk())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.content[0].address.city").value("Tech City"))
+                    .andExpect(jsonPath("$.content[0].address.country").value("USA"));
+        }
+
+        @Test
+        @DisplayName("Should search suppliers by status only")
+        void shouldSearchSuppliersByStatusOnly() throws Exception {
+            // Given
+            SupplierResponse supplier = createCompleteSupplierResponse();
+            supplier = new SupplierResponse(supplier.id(), supplier.name(), supplier.businessId(),
+                    SupplierStatus.INACTIVE, supplier.email(), supplier.phone(), supplier.contactPerson(),
+                    supplier.address(), supplier.paymentTerms(), supplier.averageDeliveryDays(),
+                    supplier.supplierType(), supplier.notes(), supplier.rating(), supplier.active(),
+                    supplier.createdAt(), supplier.updatedAt());
+            Page<SupplierResponse> page = new PageImpl<>(List.of(supplier), PageRequest.of(0, 20), 1);
+
+            given(supplierService.searchSuppliers(
+                    eq(null), eq(null), eq(null), eq(null), eq(SupplierStatus.INACTIVE), eq(null),
+                    eq(null), eq(null), eq(null), eq(null), any(Pageable.class)
+            )).willReturn(page);
+
+            // When & Then
+            mockMvc.perform(get("/api/v1/suppliers/search")
+                            .param("status", "INACTIVE"))
+                    .andExpect(status().isOk())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.content[0].status").value("INACTIVE"));
+        }
+
+        @Test
+        @DisplayName("Should search suppliers by supplier type only")
+        void shouldSearchSuppliersBySupplierTypeOnly() throws Exception {
+            // Given
+            SupplierResponse supplier = createCompleteSupplierResponse();
+            supplier = new SupplierResponse(supplier.id(), supplier.name(), supplier.businessId(),
+                    supplier.status(), supplier.email(), supplier.phone(), supplier.contactPerson(),
+                    supplier.address(), supplier.paymentTerms(), supplier.averageDeliveryDays(),
+                    SupplierType.INTERNATIONAL, supplier.notes(), supplier.rating(), supplier.active(),
+                    supplier.createdAt(), supplier.updatedAt());
+            Page<SupplierResponse> page = new PageImpl<>(List.of(supplier), PageRequest.of(0, 20), 1);
+
+            given(supplierService.searchSuppliers(
+                    eq(null), eq(null), eq(null), eq(null), eq(null), eq(SupplierType.INTERNATIONAL),
+                    eq(null), eq(null), eq(null), eq(null), any(Pageable.class)
+            )).willReturn(page);
+
+            // When & Then
+            mockMvc.perform(get("/api/v1/suppliers/search")
+                            .param("supplierType", "INTERNATIONAL"))
+                    .andExpect(status().isOk())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.content[0].supplierType").value("INTERNATIONAL"));
+        }
+
+        @Test
+        @DisplayName("Should search suppliers by rating range")
+        void shouldSearchSuppliersByRatingRange() throws Exception {
+            // Given
+            SupplierResponse supplier = createCompleteSupplierResponse();
+            Page<SupplierResponse> page = new PageImpl<>(List.of(supplier), PageRequest.of(0, 20), 1);
+
+            given(supplierService.searchSuppliers(
+                    eq(null), eq(null), eq(null), eq(null), eq(null), eq(null),
+                    eq(BigDecimal.valueOf(4.0)), eq(BigDecimal.valueOf(5.0)), eq(null), eq(null), any(Pageable.class)
+            )).willReturn(page);
+
+            // When & Then
+            mockMvc.perform(get("/api/v1/suppliers/search")
+                            .param("minRating", "4.0")
+                            .param("maxRating", "5.0"))
+                    .andExpect(status().isOk())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.content[0].rating").value(4.5));
+        }
+
+        @Test
+        @DisplayName("Should search suppliers by delivery days range")
+        void shouldSearchSuppliersByDeliveryDaysRange() throws Exception {
+            // Given
+            SupplierResponse supplier = createCompleteSupplierResponse();
+            Page<SupplierResponse> page = new PageImpl<>(List.of(supplier), PageRequest.of(0, 20), 1);
+
+            given(supplierService.searchSuppliers(
+                    eq(null), eq(null), eq(null), eq(null), eq(null), eq(null),
+                    eq(null), eq(null), eq(5), eq(10), any(Pageable.class)
+            )).willReturn(page);
+
+            // When & Then
+            mockMvc.perform(get("/api/v1/suppliers/search")
+                            .param("minDeliveryDays", "5")
+                            .param("maxDeliveryDays", "10"))
+                    .andExpect(status().isOk())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.content[0].averageDeliveryDays").value(7));
+        }
+
+        @Test
+        @DisplayName("Should return empty page when no suppliers match criteria")
+        void shouldReturnEmptyPageWhenNoSuppliersMatchCriteria() throws Exception {
+            // Given
+            Page<SupplierResponse> emptyPage = new PageImpl<>(List.of(), PageRequest.of(0, 20), 0);
+
+            given(supplierService.searchSuppliers(
+                    eq("NonExistentSupplier"), eq(null), eq(null), eq(null), eq(null), eq(null),
+                    eq(null), eq(null), eq(null), eq(null), any(Pageable.class)
+            )).willReturn(emptyPage);
+
+            // When & Then
+            mockMvc.perform(get("/api/v1/suppliers/search")
+                            .param("name", "NonExistentSupplier"))
+                    .andExpect(status().isOk())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.content").isEmpty())
+                    .andExpect(jsonPath("$.totalElements").value(0));
+        }
+
+        @Test
+        @DisplayName("Should handle pagination parameters correctly")
+        void shouldHandlePaginationParametersCorrectly() throws Exception {
+            // Given
+            SupplierResponse supplier = createCompleteSupplierResponse();
+            Page<SupplierResponse> page = new PageImpl<>(List.of(supplier), PageRequest.of(1, 5), 10);
+
+            given(supplierService.searchSuppliers(
+                    eq(null), eq(null), eq(null), eq(null), eq(null), eq(null),
+                    eq(null), eq(null), eq(null), eq(null), any(Pageable.class)
+            )).willReturn(page);
+
+            // When & Then
+            mockMvc.perform(get("/api/v1/suppliers/search")
+                            .param("page", "1")
+                            .param("size", "5")
+                            .param("sort", "name,desc"))
+                    .andExpect(status().isOk())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.content.length()").value(1))
+                    .andExpect(jsonPath("$.size").value(5))
+                    .andExpect(jsonPath("$.number").value(1))
+                    .andExpect(jsonPath("$.totalElements").value(10))
+                    .andExpect(jsonPath("$.totalPages").value(2));
+        }
+
+        @Test
+        @DisplayName("Should handle long parameter values gracefully")
+        void shouldHandleLongParameterValuesGracefully() throws Exception {
+            // Given
+            String longName = "A".repeat(151); // Exceeds 150 character limit
+            SupplierResponse supplier = createCompleteSupplierResponse();
+            Page<SupplierResponse> page = new PageImpl<>(List.of(supplier), PageRequest.of(0, 20), 1);
+
+            given(supplierService.searchSuppliers(
+                    eq(longName), eq(null), eq(null), eq(null), eq(null), eq(null),
+                    eq(null), eq(null), eq(null), eq(null), any(Pageable.class)
+            )).willReturn(page);
+
+            // When & Then - Should handle gracefully, service will filter based on business logic
+            mockMvc.perform(get("/api/v1/suppliers/search")
+                            .param("name", longName))
+                    .andExpect(status().isOk())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON));
+        }
+
+        @Test
+        @DisplayName("Should return 400 when invalid status provided")
+        void shouldReturn400WhenInvalidStatusProvided() throws Exception {
+            // When & Then - Invalid enum values should be handled by Spring and return 400
+            mockMvc.perform(get("/api/v1/suppliers/search")
+                            .param("status", "INVALID_STATUS"))
+                    .andExpect(status().isBadRequest());
+        }
+
+        @Test
+        @DisplayName("Should return 400 when invalid supplier type provided")
+        void shouldReturn400WhenInvalidSupplierTypeProvided() throws Exception {
+            // When & Then - Invalid enum values should be handled by Spring and return 400
+            mockMvc.perform(get("/api/v1/suppliers/search")
+                            .param("supplierType", "INVALID_TYPE"))
+                    .andExpect(status().isBadRequest());
+        }
+
+        @Test
+        @DisplayName("Should search suppliers with mixed criteria")
+        void shouldSearchSuppliersWithMixedCriteria() throws Exception {
+            // Given
+            SupplierResponse supplier = createCompleteSupplierResponse();
+            Page<SupplierResponse> page = new PageImpl<>(List.of(supplier), PageRequest.of(0, 20), 1);
+
+            given(supplierService.searchSuppliers(
+                    eq("ABC"), eq(null), eq("Tech"), eq(null), eq(SupplierStatus.ACTIVE), eq(null),
+                    eq(BigDecimal.valueOf(4.0)), eq(null), eq(null), eq(10), any(Pageable.class)
+            )).willReturn(page);
+
+            // When & Then
+            mockMvc.perform(get("/api/v1/suppliers/search")
+                            .param("name", "ABC")
+                            .param("city", "Tech")
+                            .param("status", "ACTIVE")
+                            .param("minRating", "4.0")
+                            .param("maxDeliveryDays", "10"))
+                    .andExpect(status().isOk())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.content[0].name").value("ABC Electronics Ltd"))
+                    .andExpect(jsonPath("$.content[0].status").value("ACTIVE"));
+        }
+
+        @Test
+        @DisplayName("Should use default pagination when not specified")
+        void shouldUseDefaultPaginationWhenNotSpecified() throws Exception {
+            // Given
+            SupplierResponse supplier = createCompleteSupplierResponse();
+            Page<SupplierResponse> page = new PageImpl<>(List.of(supplier), PageRequest.of(0, 20), 1);
+
+            given(supplierService.searchSuppliers(
+                    eq(null), eq(null), eq(null), eq(null), eq(null), eq(null),
+                    eq(null), eq(null), eq(null), eq(null), any(Pageable.class)
+            )).willReturn(page);
+
+            // When & Then
+            mockMvc.perform(get("/api/v1/suppliers/search"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.size").value(20))
+                    .andExpect(jsonPath("$.number").value(0));
+        }
+    }
+
     private SupplierResponse createSupplierResponse() {
         return createSupplierResponse("ABC Electronics Ltd");
     }
