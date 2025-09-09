@@ -1,9 +1,12 @@
 package com.inventory.controller;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.inventory.dto.request.CreateSupplierRequest;
 import com.inventory.dto.response.SupplierResponse;
 import com.inventory.entity.Address;
 import com.inventory.enums.SupplierStatus;
 import com.inventory.enums.SupplierType;
+import com.inventory.exception.DuplicateBusinessIdException;
 import com.inventory.exception.GlobalExceptionHandler;
 import com.inventory.service.SupplierService;
 import org.junit.jupiter.api.BeforeEach;
@@ -40,14 +43,338 @@ class SupplierControllerTest {
     private SupplierService supplierService;
 
     private MockMvc mockMvc;
+    private ObjectMapper objectMapper;
 
     @BeforeEach
     void setUp() {
+        this.objectMapper = new ObjectMapper();
         this.mockMvc = MockMvcBuilders
                 .standaloneSetup(new SupplierController(supplierService))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .setCustomArgumentResolvers(new PageableHandlerMethodArgumentResolver())
                 .build();
+    }
+
+    @Nested
+    @DisplayName("POST /api/v1/suppliers")
+    class CreateSupplierTests {
+
+        @Test
+        @DisplayName("Should create supplier successfully")
+        void shouldCreateSupplierSuccessfully() throws Exception {
+            // Given
+            CreateSupplierRequest request = createCompleteSupplierRequest();
+            SupplierResponse response = createCompleteSupplierResponse();
+
+            given(supplierService.createSupplier(any(CreateSupplierRequest.class))).willReturn(response);
+
+            // When & Then
+            mockMvc.perform(post("/api/v1/suppliers")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(request)))
+                    .andExpect(status().isCreated())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.name").value("ABC Electronics Ltd"))
+                    .andExpect(jsonPath("$.businessId").value("BUS123456"))
+                    .andExpect(jsonPath("$.status").value("ACTIVE"))
+                    .andExpect(jsonPath("$.email").value("contact@abcelectronics.com"))
+                    .andExpect(jsonPath("$.phone").value("+1-555-0123"))
+                    .andExpect(jsonPath("$.contactPerson").value("John Smith"))
+                    .andExpect(jsonPath("$.address.streetAddress").value("123 Industrial Blvd"))
+                    .andExpect(jsonPath("$.address.city").value("Tech City"))
+                    .andExpect(jsonPath("$.address.stateProvince").value("CA"))
+                    .andExpect(jsonPath("$.address.postalCode").value("90210"))
+                    .andExpect(jsonPath("$.address.country").value("USA"))
+                    .andExpect(jsonPath("$.paymentTerms").value("NET30"))
+                    .andExpect(jsonPath("$.averageDeliveryDays").value(7))
+                    .andExpect(jsonPath("$.supplierType").value("DOMESTIC"))
+                    .andExpect(jsonPath("$.notes").value("Reliable supplier with good quality products"))
+                    .andExpect(jsonPath("$.rating").value(4.5))
+                    .andExpect(jsonPath("$.active").value(true));
+
+            then(supplierService).should().createSupplier(any(CreateSupplierRequest.class));
+        }
+
+        @Test
+        @DisplayName("Should create supplier with minimal required fields")
+        void shouldCreateSupplierWithMinimalRequiredFields() throws Exception {
+            // Given
+            CreateSupplierRequest request = new CreateSupplierRequest(
+                    "Basic Supplier", null, null, "basic@supplier.com", "+1-555-1234",
+                    null, null, null, null, null, null, null
+            );
+            SupplierResponse response = new SupplierResponse(
+                    UUID.randomUUID(), "Basic Supplier", null, SupplierStatus.ACTIVE,
+                    "basic@supplier.com", "+1-555-1234", null, null,
+                    null, null, null, null, null,
+                    true, LocalDateTime.now(), LocalDateTime.now()
+            );
+
+            given(supplierService.createSupplier(any(CreateSupplierRequest.class))).willReturn(response);
+
+            // When & Then
+            mockMvc.perform(post("/api/v1/suppliers")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(request)))
+                    .andExpect(status().isCreated())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.name").value("Basic Supplier"))
+                    .andExpect(jsonPath("$.businessId").doesNotExist())
+                    .andExpect(jsonPath("$.status").value("ACTIVE"))
+                    .andExpect(jsonPath("$.email").value("basic@supplier.com"))
+                    .andExpect(jsonPath("$.phone").value("+1-555-1234"))
+                    .andExpect(jsonPath("$.active").value(true));
+
+            then(supplierService).should().createSupplier(any(CreateSupplierRequest.class));
+        }
+
+        @Test
+        @DisplayName("Should return 400 when name is blank")
+        void shouldReturn400WhenNameIsBlank() throws Exception {
+            // Given
+            CreateSupplierRequest request = new CreateSupplierRequest(
+                    "", "BUS123456", SupplierStatus.ACTIVE, "contact@test.com", "+1-555-0123",
+                    null, null, null, null, null, null, null
+            );
+
+            // When & Then
+            mockMvc.perform(post("/api/v1/suppliers")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(request)))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.status").value(400))
+                    .andExpect(jsonPath("$.error").value("Validation Failed"))
+                    .andExpect(jsonPath("$.fieldErrors.name").value("Supplier name is required"));
+        }
+
+        @Test
+        @DisplayName("Should return 400 when email is invalid")
+        void shouldReturn400WhenEmailIsInvalid() throws Exception {
+            // Given
+            CreateSupplierRequest request = new CreateSupplierRequest(
+                    "Valid Supplier", "BUS123456", SupplierStatus.ACTIVE, "invalid-email",
+                    "+1-555-0123", null, null, null, null, null, null, null
+            );
+
+            // When & Then
+            mockMvc.perform(post("/api/v1/suppliers")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(request)))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.status").value(400))
+                    .andExpect(jsonPath("$.error").value("Validation Failed"))
+                    .andExpect(jsonPath("$.fieldErrors.email").value("Email must be valid"));
+        }
+
+        @Test
+        @DisplayName("Should return 400 when email is blank")
+        void shouldReturn400WhenEmailIsBlank() throws Exception {
+            // Given
+            CreateSupplierRequest request = new CreateSupplierRequest(
+                    "Valid Supplier", "BUS123456", SupplierStatus.ACTIVE, "",
+                    "+1-555-0123", null, null, null, null, null, null, null
+            );
+
+            // When & Then
+            mockMvc.perform(post("/api/v1/suppliers")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(request)))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.status").value(400))
+                    .andExpect(jsonPath("$.error").value("Validation Failed"))
+                    .andExpect(jsonPath("$.fieldErrors.email").value("Email is required"));
+        }
+
+        @Test
+        @DisplayName("Should return 400 when phone is blank")
+        void shouldReturn400WhenPhoneIsBlank() throws Exception {
+            // Given
+            CreateSupplierRequest request = new CreateSupplierRequest(
+                    "Valid Supplier", "BUS123456", SupplierStatus.ACTIVE, "valid@email.com",
+                    "", null, null, null, null, null, null, null
+            );
+
+            // When & Then
+            mockMvc.perform(post("/api/v1/suppliers")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(request)))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.status").value(400))
+                    .andExpect(jsonPath("$.error").value("Validation Failed"))
+                    .andExpect(jsonPath("$.fieldErrors.phone").value("Phone is required"));
+        }
+
+        @Test
+        @DisplayName("Should return 400 when fields exceed size limits")
+        void shouldReturn400WhenFieldsExceedSizeLimits() throws Exception {
+            // Given
+            CreateSupplierRequest request = new CreateSupplierRequest(
+                    "A".repeat(151), // Exceeds 150 character limit
+                    "B".repeat(51),  // Exceeds 50 character limit
+                    SupplierStatus.ACTIVE,
+                    "valid@email.com",
+                    "+1-555-0123",
+                    null, null, null, null, null, null, null
+            );
+
+            // When & Then
+            mockMvc.perform(post("/api/v1/suppliers")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(request)))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.status").value(400))
+                    .andExpect(jsonPath("$.error").value("Validation Failed"))
+                    .andExpect(jsonPath("$.fieldErrors.name").value("Supplier name must not exceed 150 characters"))
+                    .andExpect(jsonPath("$.fieldErrors.businessId").value("Business ID must not exceed 50 characters"));
+        }
+
+        @Test
+        @DisplayName("Should return 400 when rating is out of range")
+        void shouldReturn400WhenRatingIsOutOfRange() throws Exception {
+            // Given
+            CreateSupplierRequest request = new CreateSupplierRequest(
+                    "Valid Supplier", "BUS123456", SupplierStatus.ACTIVE, "valid@email.com",
+                    "+1-555-0123", null, null, null, null, null,
+                    null, BigDecimal.valueOf(6.0) // Exceeds max rating of 5.0
+            );
+
+            // When & Then
+            mockMvc.perform(post("/api/v1/suppliers")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(request)))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.status").value(400))
+                    .andExpect(jsonPath("$.error").value("Validation Failed"))
+                    .andExpect(jsonPath("$.fieldErrors.rating").value("Rating must be between 1.0 and 5.0"));
+        }
+
+        @Test
+        @DisplayName("Should return 400 when averageDeliveryDays is less than 1")
+        void shouldReturn400WhenAverageDeliveryDaysIsLessThan1() throws Exception {
+            // Given
+            CreateSupplierRequest request = new CreateSupplierRequest(
+                    "Valid Supplier", "BUS123456", SupplierStatus.ACTIVE, "valid@email.com",
+                    "+1-555-0123", null, null, null, 0, // Less than minimum 1
+                    null, null, null
+            );
+
+            // When & Then
+            mockMvc.perform(post("/api/v1/suppliers")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(request)))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.status").value(400))
+                    .andExpect(jsonPath("$.error").value("Validation Failed"))
+                    .andExpect(jsonPath("$.fieldErrors.averageDeliveryDays").value("Average delivery days must be at least 1"));
+        }
+
+        @Test
+        @DisplayName("Should return 409 when business ID already exists")
+        void shouldReturn409WhenBusinessIdAlreadyExists() throws Exception {
+            // Given
+            CreateSupplierRequest request = createCompleteSupplierRequest();
+
+            given(supplierService.createSupplier(any(CreateSupplierRequest.class)))
+                    .willThrow(new DuplicateBusinessIdException("BUS123456"));
+
+            // When & Then
+            mockMvc.perform(post("/api/v1/suppliers")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(request)))
+                    .andExpect(status().isConflict())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.status").value(409))
+                    .andExpect(jsonPath("$.error").value("Duplicate Business ID"))
+                    .andExpect(jsonPath("$.message").value("Supplier with Business ID 'BUS123456' already exists"));
+
+            then(supplierService).should().createSupplier(any(CreateSupplierRequest.class));
+        }
+
+        @Test
+        @DisplayName("Should set default status to ACTIVE when status is null")
+        void shouldSetDefaultStatusToActiveWhenStatusIsNull() throws Exception {
+            // Given
+            CreateSupplierRequest request = new CreateSupplierRequest(
+                    "Test Supplier", "BUS123456", null, // null status should default to ACTIVE
+                    "test@supplier.com", "+1-555-0123", null, null, null, null,
+                    null, null, null
+            );
+            SupplierResponse response = new SupplierResponse(
+                    UUID.randomUUID(), "Test Supplier", "BUS123456", SupplierStatus.ACTIVE,
+                    "test@supplier.com", "+1-555-0123", null, null,
+                    null, null, null, null, null,
+                    true, LocalDateTime.now(), LocalDateTime.now()
+            );
+
+            given(supplierService.createSupplier(any(CreateSupplierRequest.class))).willReturn(response);
+
+            // When & Then
+            mockMvc.perform(post("/api/v1/suppliers")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(request)))
+                    .andExpect(status().isCreated())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.status").value("ACTIVE"));
+
+            then(supplierService).should().createSupplier(any(CreateSupplierRequest.class));
+        }
+
+        @Test
+        @DisplayName("Should handle valid address in request")
+        void shouldHandleValidAddressInRequest() throws Exception {
+            // Given
+            Address address = new Address("123 Test St", "Test City", "TS", "12345", "USA");
+            CreateSupplierRequest request = new CreateSupplierRequest(
+                    "Test Supplier", "BUS123456", SupplierStatus.ACTIVE, "test@supplier.com",
+                    "+1-555-0123", null, address, null, null, null, null, null
+            );
+            SupplierResponse response = new SupplierResponse(
+                    UUID.randomUUID(), "Test Supplier", "BUS123456", SupplierStatus.ACTIVE,
+                    "test@supplier.com", "+1-555-0123", null, address,
+                    null, null, null, null, null,
+                    true, LocalDateTime.now(), LocalDateTime.now()
+            );
+
+            given(supplierService.createSupplier(any(CreateSupplierRequest.class))).willReturn(response);
+
+            // When & Then
+            mockMvc.perform(post("/api/v1/suppliers")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(request)))
+                    .andExpect(status().isCreated())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.address.streetAddress").value("123 Test St"))
+                    .andExpect(jsonPath("$.address.city").value("Test City"))
+                    .andExpect(jsonPath("$.address.stateProvince").value("TS"))
+                    .andExpect(jsonPath("$.address.postalCode").value("12345"))
+                    .andExpect(jsonPath("$.address.country").value("USA"));
+
+            then(supplierService).should().createSupplier(any(CreateSupplierRequest.class));
+        }
+
+        private CreateSupplierRequest createCompleteSupplierRequest() {
+            return new CreateSupplierRequest(
+                    "ABC Electronics Ltd",
+                    "BUS123456",
+                    SupplierStatus.ACTIVE,
+                    "contact@abcelectronics.com",
+                    "+1-555-0123",
+                    "John Smith",
+                    new Address("123 Industrial Blvd", "Tech City", "CA", "90210", "USA"),
+                    "NET30",
+                    7,
+                    SupplierType.DOMESTIC,
+                    "Reliable supplier with good quality products",
+                    BigDecimal.valueOf(4.5)
+            );
+        }
     }
 
     @Nested

@@ -1,6 +1,9 @@
 package com.inventory.service;
 
+import com.inventory.dto.request.CreateSupplierRequest;
 import com.inventory.dto.response.SupplierResponse;
+import com.inventory.entity.Supplier;
+import com.inventory.exception.DuplicateBusinessIdException;
 import com.inventory.mapper.SupplierMapper;
 import com.inventory.repository.SupplierRepository;
 import org.springframework.data.domain.Page;
@@ -23,5 +26,19 @@ public class SupplierService {
     public Page<SupplierResponse> getAllSuppliers(Pageable pageable) {
         return supplierRepository.findByActiveTrue(pageable)
                 .map(supplierMapper::toResponse);
+    }
+
+    @Transactional
+    public SupplierResponse createSupplier(CreateSupplierRequest request) {
+        if (request.businessId() != null && !request.businessId().trim().isEmpty()) {
+            if (supplierRepository.existsByBusinessIdAndActiveTrue(request.businessId())) {
+                throw new DuplicateBusinessIdException(request.businessId());
+            }
+        }
+
+        Supplier supplier = supplierMapper.toEntity(request);
+        Supplier savedSupplier = supplierRepository.save(supplier);
+
+        return supplierMapper.toResponse(savedSupplier);
     }
 }

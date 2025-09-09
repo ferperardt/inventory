@@ -58,6 +58,17 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(errors);
     }
 
+    @ExceptionHandler(DuplicateBusinessIdException.class)
+    public ResponseEntity<Map<String, Object>> handleDuplicateBusinessIdException(DuplicateBusinessIdException ex) {
+        Map<String, Object> errors = new HashMap<>();
+        errors.put("timestamp", LocalDateTime.now());
+        errors.put("status", HttpStatus.CONFLICT.value());
+        errors.put("error", "Duplicate Business ID");
+        errors.put("message", ex.getMessage());
+
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(errors);
+    }
+
     @ExceptionHandler(InvalidStockLevelException.class)
     public ResponseEntity<Map<String, Object>> handleInvalidStockLevelException(InvalidStockLevelException ex) {
         Map<String, Object> errors = new HashMap<>();

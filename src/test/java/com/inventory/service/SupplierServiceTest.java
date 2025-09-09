@@ -1,10 +1,12 @@
 package com.inventory.service;
 
+import com.inventory.dto.request.CreateSupplierRequest;
 import com.inventory.dto.response.SupplierResponse;
 import com.inventory.entity.Address;
 import com.inventory.entity.Supplier;
 import com.inventory.enums.SupplierStatus;
 import com.inventory.enums.SupplierType;
+import com.inventory.exception.DuplicateBusinessIdException;
 import com.inventory.mapper.SupplierMapper;
 import com.inventory.repository.SupplierRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -25,8 +27,11 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
+import static org.mockito.Mockito.never;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("SupplierService Tests")
@@ -43,6 +48,235 @@ class SupplierServiceTest {
     @BeforeEach
     void setUp() {
         supplierService = new SupplierService(supplierRepository, supplierMapper);
+    }
+
+    @Nested
+    @DisplayName("createSupplier() Tests")
+    class CreateSupplierTests {
+
+        @Test
+        @DisplayName("Should create supplier successfully")
+        void shouldCreateSupplierSuccessfully() {
+            // Given
+            CreateSupplierRequest request = createCompleteCreateRequest();
+            Supplier supplier = createSupplier();
+            Supplier savedSupplier = createSupplier();
+            SupplierResponse expectedResponse = createSupplierResponse();
+
+            given(supplierRepository.existsByBusinessIdAndActiveTrue(request.businessId())).willReturn(false);
+            given(supplierMapper.toEntity(request)).willReturn(supplier);
+            given(supplierRepository.save(supplier)).willReturn(savedSupplier);
+            given(supplierMapper.toResponse(savedSupplier)).willReturn(expectedResponse);
+
+            // When
+            SupplierResponse result = supplierService.createSupplier(request);
+
+            // Then
+            assertThat(result).isEqualTo(expectedResponse);
+            then(supplierRepository).should().existsByBusinessIdAndActiveTrue(request.businessId());
+            then(supplierMapper).should().toEntity(request);
+            then(supplierRepository).should().save(supplier);
+            then(supplierMapper).should().toResponse(savedSupplier);
+        }
+
+        @Test
+        @DisplayName("Should create supplier with null business ID successfully")
+        void shouldCreateSupplierWithNullBusinessIdSuccessfully() {
+            // Given
+            CreateSupplierRequest request = createRequestWithNullBusinessId();
+            Supplier supplier = createSupplier();
+            Supplier savedSupplier = createSupplier();
+            SupplierResponse expectedResponse = createSupplierResponse();
+
+            given(supplierMapper.toEntity(request)).willReturn(supplier);
+            given(supplierRepository.save(supplier)).willReturn(savedSupplier);
+            given(supplierMapper.toResponse(savedSupplier)).willReturn(expectedResponse);
+
+            // When
+            SupplierResponse result = supplierService.createSupplier(request);
+
+            // Then
+            assertThat(result).isEqualTo(expectedResponse);
+            then(supplierRepository).should(never()).existsByBusinessIdAndActiveTrue(any());
+            then(supplierMapper).should().toEntity(request);
+            then(supplierRepository).should().save(supplier);
+            then(supplierMapper).should().toResponse(savedSupplier);
+        }
+
+        @Test
+        @DisplayName("Should create supplier with empty business ID successfully")
+        void shouldCreateSupplierWithEmptyBusinessIdSuccessfully() {
+            // Given
+            CreateSupplierRequest request = createRequestWithEmptyBusinessId();
+            Supplier supplier = createSupplier();
+            Supplier savedSupplier = createSupplier();
+            SupplierResponse expectedResponse = createSupplierResponse();
+
+            given(supplierMapper.toEntity(request)).willReturn(supplier);
+            given(supplierRepository.save(supplier)).willReturn(savedSupplier);
+            given(supplierMapper.toResponse(savedSupplier)).willReturn(expectedResponse);
+
+            // When
+            SupplierResponse result = supplierService.createSupplier(request);
+
+            // Then
+            assertThat(result).isEqualTo(expectedResponse);
+            then(supplierRepository).should(never()).existsByBusinessIdAndActiveTrue(any());
+            then(supplierMapper).should().toEntity(request);
+            then(supplierRepository).should().save(supplier);
+            then(supplierMapper).should().toResponse(savedSupplier);
+        }
+
+        @Test
+        @DisplayName("Should create supplier with whitespace-only business ID successfully")
+        void shouldCreateSupplierWithWhitespaceOnlyBusinessIdSuccessfully() {
+            // Given
+            CreateSupplierRequest request = createRequestWithWhitespaceBusinessId();
+            Supplier supplier = createSupplier();
+            Supplier savedSupplier = createSupplier();
+            SupplierResponse expectedResponse = createSupplierResponse();
+
+            given(supplierMapper.toEntity(request)).willReturn(supplier);
+            given(supplierRepository.save(supplier)).willReturn(savedSupplier);
+            given(supplierMapper.toResponse(savedSupplier)).willReturn(expectedResponse);
+
+            // When
+            SupplierResponse result = supplierService.createSupplier(request);
+
+            // Then
+            assertThat(result).isEqualTo(expectedResponse);
+            then(supplierRepository).should(never()).existsByBusinessIdAndActiveTrue(any());
+            then(supplierMapper).should().toEntity(request);
+            then(supplierRepository).should().save(supplier);
+            then(supplierMapper).should().toResponse(savedSupplier);
+        }
+
+        @Test
+        @DisplayName("Should throw DuplicateBusinessIdException when business ID already exists")
+        void shouldThrowDuplicateBusinessIdExceptionWhenBusinessIdAlreadyExists() {
+            // Given
+            CreateSupplierRequest request = createCompleteCreateRequest();
+
+            given(supplierRepository.existsByBusinessIdAndActiveTrue(request.businessId())).willReturn(true);
+
+            // When & Then
+            assertThatThrownBy(() -> supplierService.createSupplier(request))
+                    .isInstanceOf(DuplicateBusinessIdException.class)
+                    .hasMessage("Supplier with Business ID 'BUS123456' already exists");
+
+            then(supplierRepository).should().existsByBusinessIdAndActiveTrue(request.businessId());
+            then(supplierMapper).should(never()).toEntity(any());
+            then(supplierRepository).should(never()).save(any());
+            then(supplierMapper).should(never()).toResponse(any());
+        }
+
+        @Test
+        @DisplayName("Should check business ID existence only for non-null non-empty values")
+        void shouldCheckBusinessIdExistenceOnlyForNonNullNonEmptyValues() {
+            // Given
+            CreateSupplierRequest requestWithValidId = createCompleteCreateRequest();
+            CreateSupplierRequest requestWithNullId = createRequestWithNullBusinessId();
+            CreateSupplierRequest requestWithEmptyId = createRequestWithEmptyBusinessId();
+            CreateSupplierRequest requestWithWhitespaceId = createRequestWithWhitespaceBusinessId();
+
+            Supplier supplier = createSupplier();
+            Supplier savedSupplier = createSupplier();
+            SupplierResponse expectedResponse = createSupplierResponse();
+
+            given(supplierRepository.existsByBusinessIdAndActiveTrue("BUS123456")).willReturn(false);
+            given(supplierMapper.toEntity(any(CreateSupplierRequest.class))).willReturn(supplier);
+            given(supplierRepository.save(supplier)).willReturn(savedSupplier);
+            given(supplierMapper.toResponse(savedSupplier)).willReturn(expectedResponse);
+
+            // When - Valid business ID should check existence
+            supplierService.createSupplier(requestWithValidId);
+            // When - Null business ID should not check existence  
+            supplierService.createSupplier(requestWithNullId);
+            // When - Empty business ID should not check existence
+            supplierService.createSupplier(requestWithEmptyId);
+            // When - Whitespace business ID should not check existence
+            supplierService.createSupplier(requestWithWhitespaceId);
+
+            // Then - Only valid business ID should trigger existence check
+            then(supplierRepository).should().existsByBusinessIdAndActiveTrue("BUS123456");
+        }
+
+        @Test
+        @DisplayName("Should handle mapper and repository interactions correctly")
+        void shouldHandleMapperAndRepositoryInteractionsCorrectly() {
+            // Given
+            CreateSupplierRequest request = createCompleteCreateRequest();
+            Supplier mappedSupplier = createSupplier();
+            mappedSupplier.setName("Mapped Supplier");
+            Supplier savedSupplier = createSupplier();
+            savedSupplier.setName("Saved Supplier");
+            savedSupplier.setId(UUID.randomUUID());
+            SupplierResponse expectedResponse = createSupplierResponse("Final Response Supplier");
+
+            given(supplierRepository.existsByBusinessIdAndActiveTrue(request.businessId())).willReturn(false);
+            given(supplierMapper.toEntity(request)).willReturn(mappedSupplier);
+            given(supplierRepository.save(mappedSupplier)).willReturn(savedSupplier);
+            given(supplierMapper.toResponse(savedSupplier)).willReturn(expectedResponse);
+
+            // When
+            SupplierResponse result = supplierService.createSupplier(request);
+
+            // Then
+            assertThat(result).isEqualTo(expectedResponse);
+            assertThat(result.name()).isEqualTo("Final Response Supplier");
+            then(supplierRepository).should().save(mappedSupplier);
+            then(supplierMapper).should().toResponse(savedSupplier);
+        }
+
+        private CreateSupplierRequest createCompleteCreateRequest() {
+            return new CreateSupplierRequest(
+                    "ABC Electronics Ltd",
+                    "BUS123456",
+                    SupplierStatus.ACTIVE,
+                    "contact@abcelectronics.com",
+                    "+1-555-0123",
+                    "John Smith",
+                    new Address("123 Industrial Blvd", "Tech City", "CA", "90210", "USA"),
+                    "NET30",
+                    7,
+                    SupplierType.DOMESTIC,
+                    "Reliable supplier with good quality products",
+                    BigDecimal.valueOf(4.5)
+            );
+        }
+
+        private CreateSupplierRequest createRequestWithNullBusinessId() {
+            return new CreateSupplierRequest(
+                    "Test Supplier",
+                    null, // null business ID
+                    SupplierStatus.ACTIVE,
+                    "test@supplier.com",
+                    "+1-555-1234",
+                    null, null, null, null, null, null, null
+            );
+        }
+
+        private CreateSupplierRequest createRequestWithEmptyBusinessId() {
+            return new CreateSupplierRequest(
+                    "Test Supplier",
+                    "", // empty business ID
+                    SupplierStatus.ACTIVE,
+                    "test@supplier.com",
+                    "+1-555-1234",
+                    null, null, null, null, null, null, null
+            );
+        }
+
+        private CreateSupplierRequest createRequestWithWhitespaceBusinessId() {
+            return new CreateSupplierRequest(
+                    "Test Supplier",
+                    "   ", // whitespace-only business ID
+                    SupplierStatus.ACTIVE,
+                    "test@supplier.com",
+                    "+1-555-1234",
+                    null, null, null, null, null, null, null
+            );
+        }
     }
 
     @Nested
