@@ -1,6 +1,7 @@
 package com.inventory.service;
 
 import com.inventory.dto.request.CreateSupplierRequest;
+import com.inventory.dto.request.UpdateSupplierRequest;
 import com.inventory.dto.response.SupplierResponse;
 import com.inventory.entity.Supplier;
 import com.inventory.enums.SupplierStatus;
@@ -57,6 +58,25 @@ public class SupplierService {
         Supplier savedSupplier = supplierRepository.save(supplier);
 
         return supplierMapper.toResponse(savedSupplier);
+    }
+
+    @Transactional
+    public SupplierResponse updateSupplier(UUID id, UpdateSupplierRequest request) {
+        Supplier supplier = supplierRepository.findById(id)
+                .filter(Supplier::getActive)
+                .orElseThrow(() -> new SupplierNotFoundException(id));
+
+        if (request.businessId() != null && !request.businessId().trim().isEmpty()) {
+            if (supplierRepository.existsByBusinessIdAndActiveTrue(request.businessId()) &&
+                !request.businessId().equals(supplier.getBusinessId())) {
+                throw new DuplicateBusinessIdException(request.businessId());
+            }
+        }
+
+        supplierMapper.updateEntity(request, supplier);
+        Supplier updatedSupplier = supplierRepository.save(supplier);
+
+        return supplierMapper.toResponse(updatedSupplier);
     }
 
     @Transactional(readOnly = true)

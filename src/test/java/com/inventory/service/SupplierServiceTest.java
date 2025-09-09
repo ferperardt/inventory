@@ -1,6 +1,7 @@
 package com.inventory.service;
 
 import com.inventory.dto.request.CreateSupplierRequest;
+import com.inventory.dto.request.UpdateSupplierRequest;
 import com.inventory.dto.response.SupplierResponse;
 import com.inventory.entity.Address;
 import com.inventory.entity.Supplier;
@@ -1029,6 +1030,381 @@ class SupplierServiceTest {
             assertThatThrownBy(() -> supplierService.getSupplierById(supplierId))
                     .isInstanceOf(SupplierNotFoundException.class)
                     .hasMessage("Supplier not found with id: 123e4567-e89b-12d3-a456-426614174000");
+        }
+    }
+
+    @Nested
+    @DisplayName("updateSupplier() Tests")
+    class UpdateSupplierTests {
+
+        @Test
+        @DisplayName("Should update supplier successfully")
+        void shouldUpdateSupplierSuccessfully() {
+            // Given
+            UUID supplierId = UUID.randomUUID();
+            Supplier existingSupplier = createSupplier();
+            existingSupplier.setId(supplierId);
+            existingSupplier.setBusinessId("OLD-BUS-ID");
+            
+            UpdateSupplierRequest request = createCompleteUpdateRequest();
+            Supplier updatedSupplier = createSupplier();
+            updatedSupplier.setId(supplierId);
+            updatedSupplier.setName(request.name());
+            updatedSupplier.setBusinessId(request.businessId());
+            SupplierResponse expectedResponse = createSupplierResponse();
+
+            given(supplierRepository.findById(supplierId)).willReturn(Optional.of(existingSupplier));
+            given(supplierRepository.existsByBusinessIdAndActiveTrue(request.businessId())).willReturn(false);
+            given(supplierRepository.save(existingSupplier)).willReturn(updatedSupplier);
+            given(supplierMapper.toResponse(updatedSupplier)).willReturn(expectedResponse);
+
+            // When
+            SupplierResponse result = supplierService.updateSupplier(supplierId, request);
+
+            // Then
+            assertThat(result).isEqualTo(expectedResponse);
+            then(supplierRepository).should().findById(supplierId);
+            then(supplierRepository).should().existsByBusinessIdAndActiveTrue(request.businessId());
+            then(supplierMapper).should().updateEntity(request, existingSupplier);
+            then(supplierRepository).should().save(existingSupplier);
+            then(supplierMapper).should().toResponse(updatedSupplier);
+        }
+
+        @Test
+        @DisplayName("Should update supplier with same business ID successfully")
+        void shouldUpdateSupplierWithSameBusinessIdSuccessfully() {
+            // Given
+            UUID supplierId = UUID.randomUUID();
+            String businessId = "BUS123456";
+            Supplier existingSupplier = createSupplier();
+            existingSupplier.setId(supplierId);
+            existingSupplier.setBusinessId(businessId);
+            
+            UpdateSupplierRequest request = createUpdateRequestWithBusinessId(businessId);
+            Supplier updatedSupplier = createSupplier();
+            updatedSupplier.setId(supplierId);
+            SupplierResponse expectedResponse = createSupplierResponse();
+
+            given(supplierRepository.findById(supplierId)).willReturn(Optional.of(existingSupplier));
+            given(supplierRepository.existsByBusinessIdAndActiveTrue(businessId)).willReturn(true);
+            given(supplierRepository.save(existingSupplier)).willReturn(updatedSupplier);
+            given(supplierMapper.toResponse(updatedSupplier)).willReturn(expectedResponse);
+
+            // When
+            SupplierResponse result = supplierService.updateSupplier(supplierId, request);
+
+            // Then
+            assertThat(result).isEqualTo(expectedResponse);
+            then(supplierRepository).should().findById(supplierId);
+            then(supplierRepository).should().existsByBusinessIdAndActiveTrue(businessId);
+            then(supplierMapper).should().updateEntity(request, existingSupplier);
+            then(supplierRepository).should().save(existingSupplier);
+            then(supplierMapper).should().toResponse(updatedSupplier);
+        }
+
+        @Test
+        @DisplayName("Should update supplier with null business ID successfully")
+        void shouldUpdateSupplierWithNullBusinessIdSuccessfully() {
+            // Given
+            UUID supplierId = UUID.randomUUID();
+            Supplier existingSupplier = createSupplier();
+            existingSupplier.setId(supplierId);
+            
+            UpdateSupplierRequest request = createUpdateRequestWithNullBusinessId();
+            Supplier updatedSupplier = createSupplier();
+            updatedSupplier.setId(supplierId);
+            SupplierResponse expectedResponse = createSupplierResponse();
+
+            given(supplierRepository.findById(supplierId)).willReturn(Optional.of(existingSupplier));
+            given(supplierRepository.save(existingSupplier)).willReturn(updatedSupplier);
+            given(supplierMapper.toResponse(updatedSupplier)).willReturn(expectedResponse);
+
+            // When
+            SupplierResponse result = supplierService.updateSupplier(supplierId, request);
+
+            // Then
+            assertThat(result).isEqualTo(expectedResponse);
+            then(supplierRepository).should().findById(supplierId);
+            then(supplierRepository).should(never()).existsByBusinessIdAndActiveTrue(any());
+            then(supplierMapper).should().updateEntity(request, existingSupplier);
+            then(supplierRepository).should().save(existingSupplier);
+            then(supplierMapper).should().toResponse(updatedSupplier);
+        }
+
+        @Test
+        @DisplayName("Should update supplier with empty business ID successfully")
+        void shouldUpdateSupplierWithEmptyBusinessIdSuccessfully() {
+            // Given
+            UUID supplierId = UUID.randomUUID();
+            Supplier existingSupplier = createSupplier();
+            existingSupplier.setId(supplierId);
+            
+            UpdateSupplierRequest request = createUpdateRequestWithEmptyBusinessId();
+            Supplier updatedSupplier = createSupplier();
+            updatedSupplier.setId(supplierId);
+            SupplierResponse expectedResponse = createSupplierResponse();
+
+            given(supplierRepository.findById(supplierId)).willReturn(Optional.of(existingSupplier));
+            given(supplierRepository.save(existingSupplier)).willReturn(updatedSupplier);
+            given(supplierMapper.toResponse(updatedSupplier)).willReturn(expectedResponse);
+
+            // When
+            SupplierResponse result = supplierService.updateSupplier(supplierId, request);
+
+            // Then
+            assertThat(result).isEqualTo(expectedResponse);
+            then(supplierRepository).should().findById(supplierId);
+            then(supplierRepository).should(never()).existsByBusinessIdAndActiveTrue(any());
+            then(supplierMapper).should().updateEntity(request, existingSupplier);
+            then(supplierRepository).should().save(existingSupplier);
+            then(supplierMapper).should().toResponse(updatedSupplier);
+        }
+
+        @Test
+        @DisplayName("Should update supplier with whitespace-only business ID successfully")
+        void shouldUpdateSupplierWithWhitespaceOnlyBusinessIdSuccessfully() {
+            // Given
+            UUID supplierId = UUID.randomUUID();
+            Supplier existingSupplier = createSupplier();
+            existingSupplier.setId(supplierId);
+            
+            UpdateSupplierRequest request = createUpdateRequestWithWhitespaceBusinessId();
+            Supplier updatedSupplier = createSupplier();
+            updatedSupplier.setId(supplierId);
+            SupplierResponse expectedResponse = createSupplierResponse();
+
+            given(supplierRepository.findById(supplierId)).willReturn(Optional.of(existingSupplier));
+            given(supplierRepository.save(existingSupplier)).willReturn(updatedSupplier);
+            given(supplierMapper.toResponse(updatedSupplier)).willReturn(expectedResponse);
+
+            // When
+            SupplierResponse result = supplierService.updateSupplier(supplierId, request);
+
+            // Then
+            assertThat(result).isEqualTo(expectedResponse);
+            then(supplierRepository).should().findById(supplierId);
+            then(supplierRepository).should(never()).existsByBusinessIdAndActiveTrue(any());
+            then(supplierMapper).should().updateEntity(request, existingSupplier);
+            then(supplierRepository).should().save(existingSupplier);
+            then(supplierMapper).should().toResponse(updatedSupplier);
+        }
+
+        @Test
+        @DisplayName("Should throw SupplierNotFoundException when supplier does not exist")
+        void shouldThrowSupplierNotFoundExceptionWhenSupplierDoesNotExist() {
+            // Given
+            UUID nonExistentId = UUID.randomUUID();
+            UpdateSupplierRequest request = createCompleteUpdateRequest();
+
+            given(supplierRepository.findById(nonExistentId)).willReturn(Optional.empty());
+
+            // When & Then
+            assertThatThrownBy(() -> supplierService.updateSupplier(nonExistentId, request))
+                    .isInstanceOf(SupplierNotFoundException.class)
+                    .hasMessage("Supplier not found with id: " + nonExistentId);
+
+            then(supplierRepository).should().findById(nonExistentId);
+            then(supplierRepository).should(never()).existsByBusinessIdAndActiveTrue(any());
+            then(supplierMapper).should(never()).updateEntity(any(), any());
+            then(supplierRepository).should(never()).save(any());
+            then(supplierMapper).should(never()).toResponse(any());
+        }
+
+        @Test
+        @DisplayName("Should throw SupplierNotFoundException when supplier exists but is inactive")
+        void shouldThrowSupplierNotFoundExceptionWhenSupplierExistsButIsInactive() {
+            // Given
+            UUID supplierId = UUID.randomUUID();
+            Supplier inactiveSupplier = createSupplier();
+            inactiveSupplier.setId(supplierId);
+            inactiveSupplier.softDelete();
+            UpdateSupplierRequest request = createCompleteUpdateRequest();
+
+            given(supplierRepository.findById(supplierId)).willReturn(Optional.of(inactiveSupplier));
+
+            // When & Then
+            assertThatThrownBy(() -> supplierService.updateSupplier(supplierId, request))
+                    .isInstanceOf(SupplierNotFoundException.class)
+                    .hasMessage("Supplier not found with id: " + supplierId);
+
+            then(supplierRepository).should().findById(supplierId);
+            then(supplierRepository).should(never()).existsByBusinessIdAndActiveTrue(any());
+            then(supplierMapper).should(never()).updateEntity(any(), any());
+            then(supplierRepository).should(never()).save(any());
+            then(supplierMapper).should(never()).toResponse(any());
+        }
+
+        @Test
+        @DisplayName("Should throw DuplicateBusinessIdException when business ID already exists for different supplier")
+        void shouldThrowDuplicateBusinessIdExceptionWhenBusinessIdAlreadyExistsForDifferentSupplier() {
+            // Given
+            UUID supplierId = UUID.randomUUID();
+            String existingBusinessId = "EXISTING-BUS-ID";
+            String newBusinessId = "NEW-BUS-ID";
+            
+            Supplier existingSupplier = createSupplier();
+            existingSupplier.setId(supplierId);
+            existingSupplier.setBusinessId(existingBusinessId);
+            
+            UpdateSupplierRequest request = createUpdateRequestWithBusinessId(newBusinessId);
+
+            given(supplierRepository.findById(supplierId)).willReturn(Optional.of(existingSupplier));
+            given(supplierRepository.existsByBusinessIdAndActiveTrue(newBusinessId)).willReturn(true);
+
+            // When & Then
+            assertThatThrownBy(() -> supplierService.updateSupplier(supplierId, request))
+                    .isInstanceOf(DuplicateBusinessIdException.class)
+                    .hasMessage("Supplier with Business ID 'NEW-BUS-ID' already exists");
+
+            then(supplierRepository).should().findById(supplierId);
+            then(supplierRepository).should().existsByBusinessIdAndActiveTrue(newBusinessId);
+            then(supplierMapper).should(never()).updateEntity(any(), any());
+            then(supplierRepository).should(never()).save(any());
+            then(supplierMapper).should(never()).toResponse(any());
+        }
+
+        @Test
+        @DisplayName("Should handle mapper and repository interactions correctly")
+        void shouldHandleMapperAndRepositoryInteractionsCorrectly() {
+            // Given
+            UUID supplierId = UUID.randomUUID();
+            Supplier existingSupplier = createSupplier("Original Supplier");
+            existingSupplier.setId(supplierId);
+            existingSupplier.setBusinessId("ORIG-BUS-ID");
+            
+            UpdateSupplierRequest request = createCompleteUpdateRequest();
+            Supplier updatedSupplier = createSupplier("Updated Supplier");
+            updatedSupplier.setId(supplierId);
+            updatedSupplier.setBusinessId(request.businessId());
+            SupplierResponse expectedResponse = createSupplierResponse("Final Response Supplier");
+
+            given(supplierRepository.findById(supplierId)).willReturn(Optional.of(existingSupplier));
+            given(supplierRepository.existsByBusinessIdAndActiveTrue(request.businessId())).willReturn(false);
+            given(supplierRepository.save(existingSupplier)).willReturn(updatedSupplier);
+            given(supplierMapper.toResponse(updatedSupplier)).willReturn(expectedResponse);
+
+            // When
+            SupplierResponse result = supplierService.updateSupplier(supplierId, request);
+
+            // Then
+            assertThat(result).isEqualTo(expectedResponse);
+            assertThat(result.name()).isEqualTo("Final Response Supplier");
+            then(supplierRepository).should().findById(supplierId);
+            then(supplierMapper).should().updateEntity(request, existingSupplier);
+            then(supplierRepository).should().save(existingSupplier);
+            then(supplierMapper).should().toResponse(updatedSupplier);
+        }
+
+        @Test
+        @DisplayName("Should verify correct exception message format for not found")
+        void shouldVerifyCorrectExceptionMessageFormatForNotFound() {
+            // Given
+            UUID supplierId = UUID.fromString("123e4567-e89b-12d3-a456-426614174000");
+            UpdateSupplierRequest request = createCompleteUpdateRequest();
+
+            given(supplierRepository.findById(supplierId)).willReturn(Optional.empty());
+
+            // When & Then
+            assertThatThrownBy(() -> supplierService.updateSupplier(supplierId, request))
+                    .isInstanceOf(SupplierNotFoundException.class)
+                    .hasMessage("Supplier not found with id: 123e4567-e89b-12d3-a456-426614174000");
+        }
+
+        @Test
+        @DisplayName("Should check business ID existence only for non-null non-empty values")
+        void shouldCheckBusinessIdExistenceOnlyForNonNullNonEmptyValues() {
+            // Given
+            UUID supplierId = UUID.randomUUID();
+            Supplier existingSupplier = createSupplier();
+            existingSupplier.setId(supplierId);
+            existingSupplier.setBusinessId("ORIG-BUS-ID");
+
+            UpdateSupplierRequest requestWithValidId = createUpdateRequestWithBusinessId("NEW-BUS-ID");
+            UpdateSupplierRequest requestWithNullId = createUpdateRequestWithNullBusinessId();
+            UpdateSupplierRequest requestWithEmptyId = createUpdateRequestWithEmptyBusinessId();
+            UpdateSupplierRequest requestWithWhitespaceId = createUpdateRequestWithWhitespaceBusinessId();
+
+            Supplier updatedSupplier = createSupplier();
+            updatedSupplier.setId(supplierId);
+            SupplierResponse expectedResponse = createSupplierResponse();
+
+            given(supplierRepository.findById(supplierId)).willReturn(Optional.of(existingSupplier));
+            given(supplierRepository.existsByBusinessIdAndActiveTrue("NEW-BUS-ID")).willReturn(false);
+            given(supplierRepository.save(existingSupplier)).willReturn(updatedSupplier);
+            given(supplierMapper.toResponse(updatedSupplier)).willReturn(expectedResponse);
+
+            // When - Valid business ID should check existence
+            supplierService.updateSupplier(supplierId, requestWithValidId);
+            // When - Null business ID should not check existence
+            supplierService.updateSupplier(supplierId, requestWithNullId);
+            // When - Empty business ID should not check existence
+            supplierService.updateSupplier(supplierId, requestWithEmptyId);
+            // When - Whitespace business ID should not check existence
+            supplierService.updateSupplier(supplierId, requestWithWhitespaceId);
+
+            // Then - Only valid business ID should trigger existence check
+            then(supplierRepository).should().existsByBusinessIdAndActiveTrue("NEW-BUS-ID");
+        }
+
+        private UpdateSupplierRequest createCompleteUpdateRequest() {
+            return new UpdateSupplierRequest(
+                    "Updated Electronics Ltd",
+                    "UPD123456",
+                    SupplierStatus.ACTIVE,
+                    "updated@electronics.com",
+                    "+1-555-9999",
+                    "Jane Doe",
+                    new Address("456 Updated Blvd", "New City", "NY", "10001", "USA"),
+                    "NET15",
+                    5,
+                    SupplierType.INTERNATIONAL,
+                    "Updated supplier information",
+                    BigDecimal.valueOf(4.8)
+            );
+        }
+
+        private UpdateSupplierRequest createUpdateRequestWithBusinessId(String businessId) {
+            return new UpdateSupplierRequest(
+                    "Test Supplier",
+                    businessId,
+                    SupplierStatus.ACTIVE,
+                    "test@supplier.com",
+                    "+1-555-0123",
+                    null, null, null, null, null, null, null
+            );
+        }
+
+        private UpdateSupplierRequest createUpdateRequestWithNullBusinessId() {
+            return new UpdateSupplierRequest(
+                    "Test Supplier",
+                    null,
+                    SupplierStatus.ACTIVE,
+                    "test@supplier.com",
+                    "+1-555-0123",
+                    null, null, null, null, null, null, null
+            );
+        }
+
+        private UpdateSupplierRequest createUpdateRequestWithEmptyBusinessId() {
+            return new UpdateSupplierRequest(
+                    "Test Supplier",
+                    "",
+                    SupplierStatus.ACTIVE,
+                    "test@supplier.com",
+                    "+1-555-0123",
+                    null, null, null, null, null, null, null
+            );
+        }
+
+        private UpdateSupplierRequest createUpdateRequestWithWhitespaceBusinessId() {
+            return new UpdateSupplierRequest(
+                    "Test Supplier",
+                    "   ",
+                    SupplierStatus.ACTIVE,
+                    "test@supplier.com",
+                    "+1-555-0123",
+                    null, null, null, null, null, null, null
+            );
         }
     }
 

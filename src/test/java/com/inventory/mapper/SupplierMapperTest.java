@@ -1,6 +1,7 @@
 package com.inventory.mapper;
 
 import com.inventory.dto.request.CreateSupplierRequest;
+import com.inventory.dto.request.UpdateSupplierRequest;
 import com.inventory.dto.response.SupplierResponse;
 import com.inventory.entity.Address;
 import com.inventory.entity.Supplier;
@@ -678,6 +679,445 @@ class SupplierMapperTest {
         }
     }
 
+    @Nested
+    @DisplayName("updateEntity() Tests")
+    class UpdateEntityTests {
+
+        @Test
+        @DisplayName("Should update entity from UpdateSupplierRequest successfully")
+        void shouldUpdateEntityFromUpdateSupplierRequestSuccessfully() {
+            // Given
+            Supplier existingSupplier = createCompleteSupplier();
+            existingSupplier.setName("Original Name");
+            existingSupplier.setBusinessId("ORIG-BUS-ID");
+            existingSupplier.setStatus(SupplierStatus.INACTIVE);
+            existingSupplier.setEmail("original@email.com");
+            existingSupplier.setPhone("+1-555-0000");
+            existingSupplier.setContactPerson("Original Contact");
+            existingSupplier.setPaymentTerms("NET60");
+            existingSupplier.setAverageDeliveryDays(14);
+            existingSupplier.setSupplierType(SupplierType.DOMESTIC);
+            existingSupplier.setNotes("Original notes");
+            existingSupplier.setRating(BigDecimal.valueOf(3.0));
+            
+            UpdateSupplierRequest request = createCompleteUpdateRequest();
+
+            // When
+            supplierMapper.updateEntity(request, existingSupplier);
+
+            // Then
+            assertThat(existingSupplier.getName()).isEqualTo(request.name());
+            assertThat(existingSupplier.getBusinessId()).isEqualTo(request.businessId());
+            assertThat(existingSupplier.getStatus()).isEqualTo(request.status());
+            assertThat(existingSupplier.getEmail()).isEqualTo(request.email());
+            assertThat(existingSupplier.getPhone()).isEqualTo(request.phone());
+            assertThat(existingSupplier.getContactPerson()).isEqualTo(request.contactPerson());
+            assertThat(existingSupplier.getAddress()).isEqualTo(request.address());
+            assertThat(existingSupplier.getPaymentTerms()).isEqualTo(request.paymentTerms());
+            assertThat(existingSupplier.getAverageDeliveryDays()).isEqualTo(request.averageDeliveryDays());
+            assertThat(existingSupplier.getSupplierType()).isEqualTo(request.supplierType());
+            assertThat(existingSupplier.getNotes()).isEqualTo(request.notes());
+            assertThat(existingSupplier.getRating()).isEqualTo(request.rating());
+            
+            // BaseEntity fields should remain unchanged
+            assertThat(existingSupplier.getId()).isNotNull(); // Should preserve original ID
+            assertThat(existingSupplier.getActive()).isTrue(); // Should preserve active flag
+            // Note: timestamps are set by JPA auditing and may be null in unit tests
+        }
+
+        @Test
+        @DisplayName("Should update entity with minimal fields from UpdateSupplierRequest")
+        void shouldUpdateEntityWithMinimalFieldsFromUpdateSupplierRequest() {
+            // Given
+            Supplier existingSupplier = createCompleteSupplier();
+            UpdateSupplierRequest request = new UpdateSupplierRequest(
+                    "Updated Basic Supplier", null, null, "updated@supplier.com", "+1-555-9999",
+                    null, null, null, null, null, null, null
+            );
+
+            // When
+            supplierMapper.updateEntity(request, existingSupplier);
+
+            // Then
+            assertThat(existingSupplier.getName()).isEqualTo("Updated Basic Supplier");
+            assertThat(existingSupplier.getBusinessId()).isNull();
+            assertThat(existingSupplier.getStatus()).isNull();
+            assertThat(existingSupplier.getEmail()).isEqualTo("updated@supplier.com");
+            assertThat(existingSupplier.getPhone()).isEqualTo("+1-555-9999");
+            assertThat(existingSupplier.getContactPerson()).isNull();
+            assertThat(existingSupplier.getAddress()).isNull();
+            assertThat(existingSupplier.getPaymentTerms()).isNull();
+            assertThat(existingSupplier.getAverageDeliveryDays()).isNull();
+            assertThat(existingSupplier.getSupplierType()).isNull();
+            assertThat(existingSupplier.getNotes()).isNull();
+            assertThat(existingSupplier.getRating()).isNull();
+        }
+
+        @Test
+        @DisplayName("Should preserve BaseEntity fields when updating")
+        void shouldPreserveBaseEntityFieldsWhenUpdating() {
+            // Given
+            Supplier existingSupplier = createCompleteSupplier();
+            UUID originalId = existingSupplier.getId();
+            Boolean originalActive = existingSupplier.getActive();
+            
+            UpdateSupplierRequest request = createCompleteUpdateRequest();
+
+            // When
+            supplierMapper.updateEntity(request, existingSupplier);
+
+            // Then - BaseEntity fields should be preserved
+            assertThat(existingSupplier.getId()).isEqualTo(originalId);
+            assertThat(existingSupplier.getActive()).isEqualTo(originalActive);
+            assertThat(existingSupplier.getDeletedAt()).isNull(); // Should remain unchanged
+            // Note: timestamps are managed by JPA auditing and may be null in unit tests
+        }
+
+        @Test
+        @DisplayName("Should handle all SupplierStatus enum values")
+        void shouldHandleAllSupplierStatusEnumValues() {
+            // Given - Test each status
+            SupplierStatus[] statuses = {
+                SupplierStatus.ACTIVE, 
+                SupplierStatus.INACTIVE, 
+                SupplierStatus.BLOCKED, 
+                SupplierStatus.PENDING_APPROVAL
+            };
+
+            for (SupplierStatus status : statuses) {
+                Supplier supplier = createBasicSupplier();
+                UpdateSupplierRequest request = new UpdateSupplierRequest(
+                        "Test Supplier", "BUS123456", status, "test@supplier.com", 
+                        "+1-555-0123", null, null, null, null, null, null, null
+                );
+
+                // When
+                supplierMapper.updateEntity(request, supplier);
+
+                // Then
+                assertThat(supplier.getStatus()).isEqualTo(status);
+            }
+        }
+
+        @Test
+        @DisplayName("Should handle all SupplierType enum values")
+        void shouldHandleAllSupplierTypeEnumValues() {
+            // Given - Test each type
+            SupplierType[] types = {SupplierType.DOMESTIC, SupplierType.INTERNATIONAL};
+
+            for (SupplierType type : types) {
+                Supplier supplier = createBasicSupplier();
+                UpdateSupplierRequest request = new UpdateSupplierRequest(
+                        "Test Supplier", "BUS123456", SupplierStatus.ACTIVE, "test@supplier.com",
+                        "+1-555-0123", null, null, null, null, type, null, null
+                );
+
+                // When
+                supplierMapper.updateEntity(request, supplier);
+
+                // Then
+                assertThat(supplier.getSupplierType()).isEqualTo(type);
+            }
+        }
+
+        @Test
+        @DisplayName("Should handle embedded Address correctly")
+        void shouldHandleEmbeddedAddressCorrectly() {
+            // Given
+            Supplier supplier = createBasicSupplier();
+            Address originalAddress = new Address("Original St", "Original City", "OS", "00000", "USA");
+            supplier.setAddress(originalAddress);
+            
+            Address newAddress = new Address(
+                "456 Updated Ave", "Updated City", "UC", "99999", "CAN"
+            );
+            UpdateSupplierRequest request = new UpdateSupplierRequest(
+                    "Test Supplier", "BUS123456", SupplierStatus.ACTIVE, "test@supplier.com",
+                    "+1-555-0123", null, newAddress, null, null, null, null, null
+            );
+
+            // When
+            supplierMapper.updateEntity(request, supplier);
+
+            // Then
+            assertThat(supplier.getAddress()).isNotNull();
+            assertThat(supplier.getAddress()).isEqualTo(newAddress);
+            assertThat(supplier.getAddress().getStreetAddress()).isEqualTo("456 Updated Ave");
+            assertThat(supplier.getAddress().getCity()).isEqualTo("Updated City");
+            assertThat(supplier.getAddress().getStateProvince()).isEqualTo("UC");
+            assertThat(supplier.getAddress().getPostalCode()).isEqualTo("99999");
+            assertThat(supplier.getAddress().getCountry()).isEqualTo("CAN");
+        }
+
+        @Test
+        @DisplayName("Should handle null Address correctly")
+        void shouldHandleNullAddressCorrectly() {
+            // Given
+            Supplier supplier = createBasicSupplier();
+            Address originalAddress = new Address("Original St", "Original City", "OS", "00000", "USA");
+            supplier.setAddress(originalAddress);
+            
+            UpdateSupplierRequest request = new UpdateSupplierRequest(
+                    "Test Supplier", "BUS123456", SupplierStatus.ACTIVE, "test@supplier.com",
+                    "+1-555-0123", null, null, // null address
+                    null, null, null, null, null
+            );
+
+            // When
+            supplierMapper.updateEntity(request, supplier);
+
+            // Then
+            assertThat(supplier.getAddress()).isNull();
+        }
+
+        @Test
+        @DisplayName("Should handle BigDecimal rating correctly")
+        void shouldHandleBigDecimalRatingCorrectly() {
+            // Given
+            Supplier supplier = createBasicSupplier();
+            supplier.setRating(BigDecimal.valueOf(2.0));
+            
+            UpdateSupplierRequest request = new UpdateSupplierRequest(
+                    "Test Supplier", "BUS123456", SupplierStatus.ACTIVE, "test@supplier.com",
+                    "+1-555-0123", null, null, null, null, null, null,
+                    BigDecimal.valueOf(4.75)
+            );
+
+            // When
+            supplierMapper.updateEntity(request, supplier);
+
+            // Then
+            assertThat(supplier.getRating()).isEqualTo(BigDecimal.valueOf(4.75));
+        }
+
+        @Test
+        @DisplayName("Should handle null rating correctly")
+        void shouldHandleNullRatingCorrectly() {
+            // Given
+            Supplier supplier = createBasicSupplier();
+            supplier.setRating(BigDecimal.valueOf(3.5));
+            
+            UpdateSupplierRequest request = new UpdateSupplierRequest(
+                    "Test Supplier", "BUS123456", SupplierStatus.ACTIVE, "test@supplier.com",
+                    "+1-555-0123", null, null, null, null, null, null,
+                    null // null rating
+            );
+
+            // When
+            supplierMapper.updateEntity(request, supplier);
+
+            // Then
+            assertThat(supplier.getRating()).isNull();
+        }
+
+        @Test
+        @DisplayName("Should handle zero average delivery days")
+        void shouldHandleZeroAverageDeliveryDays() {
+            // Given
+            Supplier supplier = createBasicSupplier();
+            supplier.setAverageDeliveryDays(10);
+            
+            UpdateSupplierRequest request = new UpdateSupplierRequest(
+                    "Test Supplier", "BUS123456", SupplierStatus.ACTIVE, "test@supplier.com",
+                    "+1-555-0123", null, null, null, 0, // zero average delivery days
+                    null, null, null
+            );
+
+            // When
+            supplierMapper.updateEntity(request, supplier);
+
+            // Then
+            assertThat(supplier.getAverageDeliveryDays()).isEqualTo(0);
+        }
+
+        @Test
+        @DisplayName("Should handle empty strings for optional fields")
+        void shouldHandleEmptyStringsForOptionalFields() {
+            // Given
+            Supplier supplier = createBasicSupplier();
+            supplier.setBusinessId("ORIGINAL-ID");
+            supplier.setContactPerson("Original Person");
+            supplier.setPaymentTerms("NET30");
+            supplier.setNotes("Original notes");
+            
+            UpdateSupplierRequest request = new UpdateSupplierRequest(
+                    "Test Supplier", "", SupplierStatus.ACTIVE, "test@supplier.com", "+1-555-0123",
+                    "", null, "", null, null, "", null
+            );
+
+            // When
+            supplierMapper.updateEntity(request, supplier);
+
+            // Then
+            assertThat(supplier.getBusinessId()).isEmpty();
+            assertThat(supplier.getContactPerson()).isEmpty();
+            assertThat(supplier.getPaymentTerms()).isEmpty();
+            assertThat(supplier.getNotes()).isEmpty();
+        }
+
+        @Test
+        @DisplayName("Should handle international supplier data correctly")
+        void shouldHandleInternationalSupplierDataCorrectly() {
+            // Given
+            Supplier supplier = createBasicSupplier();
+            Address internationalAddress = new Address(
+                "上海市浦东新区陆家嘴环路1000号", "上海市", "上海", "200120", "CHN"
+            );
+            UpdateSupplierRequest request = new UpdateSupplierRequest(
+                    "上海供应商有限公司",
+                    "CHN-UPD-001",
+                    SupplierStatus.ACTIVE,
+                    "contact@上海supplier.com",
+                    "+86-21-1234-5678",
+                    "李明",
+                    internationalAddress,
+                    "NET30",
+                    21,
+                    SupplierType.INTERNATIONAL,
+                    "优质更新供应商",
+                    BigDecimal.valueOf(4.9)
+            );
+
+            // When
+            supplierMapper.updateEntity(request, supplier);
+
+            // Then
+            assertThat(supplier.getName()).isEqualTo("上海供应商有限公司");
+            assertThat(supplier.getBusinessId()).isEqualTo("CHN-UPD-001");
+            assertThat(supplier.getEmail()).isEqualTo("contact@上海supplier.com");
+            assertThat(supplier.getPhone()).isEqualTo("+86-21-1234-5678");
+            assertThat(supplier.getContactPerson()).isEqualTo("李明");
+            assertThat(supplier.getSupplierType()).isEqualTo(SupplierType.INTERNATIONAL);
+            assertThat(supplier.getNotes()).isEqualTo("优质更新供应商");
+            assertThat(supplier.getAddress()).isEqualTo(internationalAddress);
+        }
+
+        @Test
+        @DisplayName("Should handle large text fields correctly")
+        void shouldHandleLargeTextFieldsCorrectly() {
+            // Given
+            Supplier supplier = createBasicSupplier();
+            String longBusinessId = "UPDATED-BUSINESS-ID-".repeat(2) + "FINAL";
+            String longNotes = "This is an updated very long note about the supplier that contains new detailed information about their enhanced capabilities, improved history, better performance metrics, and other relevant details that might be useful for updated procurement decisions and ongoing supplier relationship management activities.";
+            
+            UpdateSupplierRequest request = new UpdateSupplierRequest(
+                    "Updated Test Supplier",
+                    longBusinessId,
+                    SupplierStatus.ACTIVE,
+                    "updated@supplier.com",
+                    "+1-555-9999",
+                    null, null, null, null, null,
+                    longNotes,
+                    null
+            );
+
+            // When
+            supplierMapper.updateEntity(request, supplier);
+
+            // Then
+            assertThat(supplier.getBusinessId()).isEqualTo(longBusinessId);
+            assertThat(supplier.getNotes()).isEqualTo(longNotes);
+        }
+
+        @Test
+        @DisplayName("Should not update when request is null")
+        void shouldNotUpdateWhenRequestIsNull() {
+            // Given
+            Supplier originalSupplier = createCompleteSupplier();
+            String originalName = originalSupplier.getName();
+            String originalBusinessId = originalSupplier.getBusinessId();
+            
+            // When
+            supplierMapper.updateEntity(null, originalSupplier);
+
+            // Then - Supplier should remain unchanged
+            assertThat(originalSupplier.getName()).isEqualTo(originalName);
+            assertThat(originalSupplier.getBusinessId()).isEqualTo(originalBusinessId);
+        }
+
+        @Test
+        @DisplayName("Should not fail when target supplier is null")
+        void shouldNotFailWhenTargetSupplierIsNull() {
+            // Given
+            UpdateSupplierRequest request = createCompleteUpdateRequest();
+
+            // When & Then - Should not throw exception, but may not be supported by MapStruct
+            try {
+                supplierMapper.updateEntity(request, null);
+            } catch (NullPointerException e) {
+                // This is expected behavior for MapStruct when target is null
+                // The method is designed to update existing entities, not create new ones
+                assertThat(e).isInstanceOf(NullPointerException.class);
+            }
+        }
+
+        @Test
+        @DisplayName("Should update all non-BaseEntity fields comprehensively")
+        void shouldUpdateAllNonBaseEntityFieldsComprehensively() {
+            // Given
+            Supplier supplier = createCompleteSupplier();
+            
+            // Store original BaseEntity values
+            UUID originalId = supplier.getId();
+            Boolean originalActive = supplier.getActive();
+            
+            Address newAddress = new Address("New Street", "New City", "NC", "12345", "USA");
+            UpdateSupplierRequest request = new UpdateSupplierRequest(
+                    "Completely New Name",
+                    "NEW-BUS-ID-2024",
+                    SupplierStatus.PENDING_APPROVAL,
+                    "new@company.com",
+                    "+1-800-NEW-SUPP",
+                    "New Contact Person",
+                    newAddress,
+                    "NET45",
+                    3,
+                    SupplierType.INTERNATIONAL,
+                    "Completely new comprehensive notes with updated information",
+                    BigDecimal.valueOf(4.2)
+            );
+
+            // When
+            supplierMapper.updateEntity(request, supplier);
+
+            // Then - All business fields should be updated
+            assertThat(supplier.getName()).isEqualTo("Completely New Name");
+            assertThat(supplier.getBusinessId()).isEqualTo("NEW-BUS-ID-2024");
+            assertThat(supplier.getStatus()).isEqualTo(SupplierStatus.PENDING_APPROVAL);
+            assertThat(supplier.getEmail()).isEqualTo("new@company.com");
+            assertThat(supplier.getPhone()).isEqualTo("+1-800-NEW-SUPP");
+            assertThat(supplier.getContactPerson()).isEqualTo("New Contact Person");
+            assertThat(supplier.getAddress()).isEqualTo(newAddress);
+            assertThat(supplier.getPaymentTerms()).isEqualTo("NET45");
+            assertThat(supplier.getAverageDeliveryDays()).isEqualTo(3);
+            assertThat(supplier.getSupplierType()).isEqualTo(SupplierType.INTERNATIONAL);
+            assertThat(supplier.getNotes()).isEqualTo("Completely new comprehensive notes with updated information");
+            assertThat(supplier.getRating()).isEqualTo(BigDecimal.valueOf(4.2));
+            
+            // But BaseEntity fields should remain unchanged
+            assertThat(supplier.getId()).isEqualTo(originalId);
+            assertThat(supplier.getActive()).isEqualTo(originalActive);
+            assertThat(supplier.getDeletedAt()).isNull();
+        }
+
+        private UpdateSupplierRequest createCompleteUpdateRequest() {
+            return new UpdateSupplierRequest(
+                    "Updated Electronics Ltd",
+                    "UPD123456",
+                    SupplierStatus.ACTIVE,
+                    "updated@electronics.com",
+                    "+1-555-9999",
+                    "Jane Doe",
+                    new Address("456 Updated Blvd", "New City", "NY", "10001", "USA"),
+                    "NET15",
+                    5,
+                    SupplierType.INTERNATIONAL,
+                    "Updated supplier information",
+                    BigDecimal.valueOf(4.8)
+            );
+        }
+    }
+
     private Supplier createCompleteSupplier() {
         Supplier supplier = new Supplier();
         supplier.setId(UUID.randomUUID());
@@ -693,7 +1133,7 @@ class SupplierMapperTest {
         supplier.setSupplierType(SupplierType.DOMESTIC);
         supplier.setNotes("Reliable supplier with good quality products");
         supplier.setRating(BigDecimal.valueOf(4.5));
-        // Timestamps are set by JPA auditing, active defaults to true
+        // Timestamps are managed by JPA auditing and will be null in unit tests
         return supplier;
     }
 

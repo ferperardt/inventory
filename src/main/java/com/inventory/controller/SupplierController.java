@@ -1,6 +1,7 @@
 package com.inventory.controller;
 
 import com.inventory.dto.request.CreateSupplierRequest;
+import com.inventory.dto.request.UpdateSupplierRequest;
 import com.inventory.dto.response.SupplierResponse;
 import com.inventory.enums.SupplierStatus;
 import com.inventory.enums.SupplierType;
@@ -45,6 +46,14 @@ public class SupplierController {
     @GetMapping("/{id}")
     public ResponseEntity<SupplierResponse> getSupplierById(@PathVariable UUID id) {
         SupplierResponse supplier = supplierService.getSupplierById(id);
+        return ResponseEntity.ok(supplier);
+    }
+
+    @PutMapping("/{id}")
+    public ResponseEntity<SupplierResponse> updateSupplier(
+            @PathVariable UUID id,
+            @Valid @RequestBody UpdateSupplierRequest request) {
+        SupplierResponse supplier = supplierService.updateSupplier(id, request);
         return ResponseEntity.ok(supplier);
     }
 

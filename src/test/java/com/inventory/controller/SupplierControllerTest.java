@@ -2,6 +2,7 @@ package com.inventory.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.inventory.dto.request.CreateSupplierRequest;
+import com.inventory.dto.request.UpdateSupplierRequest;
 import com.inventory.dto.response.SupplierResponse;
 import com.inventory.entity.Address;
 import com.inventory.enums.SupplierStatus;
@@ -1051,6 +1052,389 @@ class SupplierControllerTest {
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.size").value(20))
                     .andExpect(jsonPath("$.number").value(0));
+        }
+    }
+
+    @Nested
+    @DisplayName("PUT /api/v1/suppliers/{id}")
+    class UpdateSupplierTests {
+
+        @Test
+        @DisplayName("Should update supplier successfully")
+        void shouldUpdateSupplierSuccessfully() throws Exception {
+            // Given
+            UUID supplierId = UUID.randomUUID();
+            UpdateSupplierRequest request = createCompleteUpdateSupplierRequest();
+            SupplierResponse response = createCompleteSupplierResponse();
+
+            given(supplierService.updateSupplier(eq(supplierId), any(UpdateSupplierRequest.class))).willReturn(response);
+
+            // When & Then
+            mockMvc.perform(put("/api/v1/suppliers/{id}", supplierId)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(request)))
+                    .andExpect(status().isOk())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.name").value("ABC Electronics Ltd"))
+                    .andExpect(jsonPath("$.businessId").value("BUS123456"))
+                    .andExpect(jsonPath("$.status").value("ACTIVE"))
+                    .andExpect(jsonPath("$.email").value("contact@abcelectronics.com"))
+                    .andExpect(jsonPath("$.phone").value("+1-555-0123"))
+                    .andExpect(jsonPath("$.contactPerson").value("John Smith"))
+                    .andExpect(jsonPath("$.address.streetAddress").value("123 Industrial Blvd"))
+                    .andExpect(jsonPath("$.address.city").value("Tech City"))
+                    .andExpect(jsonPath("$.address.stateProvince").value("CA"))
+                    .andExpect(jsonPath("$.address.postalCode").value("90210"))
+                    .andExpect(jsonPath("$.address.country").value("USA"))
+                    .andExpect(jsonPath("$.paymentTerms").value("NET30"))
+                    .andExpect(jsonPath("$.averageDeliveryDays").value(7))
+                    .andExpect(jsonPath("$.supplierType").value("DOMESTIC"))
+                    .andExpect(jsonPath("$.notes").value("Reliable supplier with good quality products"))
+                    .andExpect(jsonPath("$.rating").value(4.5))
+                    .andExpect(jsonPath("$.active").value(true));
+
+            then(supplierService).should().updateSupplier(eq(supplierId), any(UpdateSupplierRequest.class));
+        }
+
+        @Test
+        @DisplayName("Should update supplier with minimal required fields")
+        void shouldUpdateSupplierWithMinimalRequiredFields() throws Exception {
+            // Given
+            UUID supplierId = UUID.randomUUID();
+            UpdateSupplierRequest request = new UpdateSupplierRequest(
+                    "Basic Supplier", null, null, "basic@supplier.com", "+1-555-1234",
+                    null, null, null, null, null, null, null
+            );
+            SupplierResponse response = new SupplierResponse(
+                    supplierId, "Basic Supplier", null, SupplierStatus.ACTIVE,
+                    "basic@supplier.com", "+1-555-1234", null, null,
+                    null, null, null, null, null,
+                    true, LocalDateTime.now(), LocalDateTime.now()
+            );
+
+            given(supplierService.updateSupplier(eq(supplierId), any(UpdateSupplierRequest.class))).willReturn(response);
+
+            // When & Then
+            mockMvc.perform(put("/api/v1/suppliers/{id}", supplierId)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(request)))
+                    .andExpect(status().isOk())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.name").value("Basic Supplier"))
+                    .andExpect(jsonPath("$.businessId").doesNotExist())
+                    .andExpect(jsonPath("$.status").value("ACTIVE"))
+                    .andExpect(jsonPath("$.email").value("basic@supplier.com"))
+                    .andExpect(jsonPath("$.phone").value("+1-555-1234"))
+                    .andExpect(jsonPath("$.active").value(true));
+
+            then(supplierService).should().updateSupplier(eq(supplierId), any(UpdateSupplierRequest.class));
+        }
+
+        @Test
+        @DisplayName("Should return 400 when name is blank")
+        void shouldReturn400WhenNameIsBlank() throws Exception {
+            // Given
+            UUID supplierId = UUID.randomUUID();
+            UpdateSupplierRequest request = new UpdateSupplierRequest(
+                    "", "BUS123456", SupplierStatus.ACTIVE, "contact@test.com", "+1-555-0123",
+                    null, null, null, null, null, null, null
+            );
+
+            // When & Then
+            mockMvc.perform(put("/api/v1/suppliers/{id}", supplierId)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(request)))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.status").value(400))
+                    .andExpect(jsonPath("$.error").value("Validation Failed"))
+                    .andExpect(jsonPath("$.fieldErrors.name").value("Supplier name is required"));
+        }
+
+        @Test
+        @DisplayName("Should return 400 when email is invalid")
+        void shouldReturn400WhenEmailIsInvalid() throws Exception {
+            // Given
+            UUID supplierId = UUID.randomUUID();
+            UpdateSupplierRequest request = new UpdateSupplierRequest(
+                    "Valid Supplier", "BUS123456", SupplierStatus.ACTIVE, "invalid-email",
+                    "+1-555-0123", null, null, null, null, null, null, null
+            );
+
+            // When & Then
+            mockMvc.perform(put("/api/v1/suppliers/{id}", supplierId)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(request)))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.status").value(400))
+                    .andExpect(jsonPath("$.error").value("Validation Failed"))
+                    .andExpect(jsonPath("$.fieldErrors.email").value("Email must be valid"));
+        }
+
+        @Test
+        @DisplayName("Should return 400 when email is blank")
+        void shouldReturn400WhenEmailIsBlank() throws Exception {
+            // Given
+            UUID supplierId = UUID.randomUUID();
+            UpdateSupplierRequest request = new UpdateSupplierRequest(
+                    "Valid Supplier", "BUS123456", SupplierStatus.ACTIVE, "",
+                    "+1-555-0123", null, null, null, null, null, null, null
+            );
+
+            // When & Then
+            mockMvc.perform(put("/api/v1/suppliers/{id}", supplierId)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(request)))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.status").value(400))
+                    .andExpect(jsonPath("$.error").value("Validation Failed"))
+                    .andExpect(jsonPath("$.fieldErrors.email").value("Email is required"));
+        }
+
+        @Test
+        @DisplayName("Should return 400 when phone is blank")
+        void shouldReturn400WhenPhoneIsBlank() throws Exception {
+            // Given
+            UUID supplierId = UUID.randomUUID();
+            UpdateSupplierRequest request = new UpdateSupplierRequest(
+                    "Valid Supplier", "BUS123456", SupplierStatus.ACTIVE, "valid@email.com",
+                    "", null, null, null, null, null, null, null
+            );
+
+            // When & Then
+            mockMvc.perform(put("/api/v1/suppliers/{id}", supplierId)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(request)))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.status").value(400))
+                    .andExpect(jsonPath("$.error").value("Validation Failed"))
+                    .andExpect(jsonPath("$.fieldErrors.phone").value("Phone is required"));
+        }
+
+        @Test
+        @DisplayName("Should return 400 when fields exceed size limits")
+        void shouldReturn400WhenFieldsExceedSizeLimits() throws Exception {
+            // Given
+            UUID supplierId = UUID.randomUUID();
+            UpdateSupplierRequest request = new UpdateSupplierRequest(
+                    "A".repeat(151), // Exceeds 150 character limit
+                    "B".repeat(51),  // Exceeds 50 character limit
+                    SupplierStatus.ACTIVE,
+                    "valid@email.com",
+                    "+1-555-0123",
+                    null, null, null, null, null, null, null
+            );
+
+            // When & Then
+            mockMvc.perform(put("/api/v1/suppliers/{id}", supplierId)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(request)))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.status").value(400))
+                    .andExpect(jsonPath("$.error").value("Validation Failed"))
+                    .andExpect(jsonPath("$.fieldErrors.name").value("Supplier name must not exceed 150 characters"))
+                    .andExpect(jsonPath("$.fieldErrors.businessId").value("Business ID must not exceed 50 characters"));
+        }
+
+        @Test
+        @DisplayName("Should return 400 when rating is out of range")
+        void shouldReturn400WhenRatingIsOutOfRange() throws Exception {
+            // Given
+            UUID supplierId = UUID.randomUUID();
+            UpdateSupplierRequest request = new UpdateSupplierRequest(
+                    "Valid Supplier", "BUS123456", SupplierStatus.ACTIVE, "valid@email.com",
+                    "+1-555-0123", null, null, null, null, null,
+                    null, BigDecimal.valueOf(6.0) // Exceeds max rating of 5.0
+            );
+
+            // When & Then
+            mockMvc.perform(put("/api/v1/suppliers/{id}", supplierId)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(request)))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.status").value(400))
+                    .andExpect(jsonPath("$.error").value("Validation Failed"))
+                    .andExpect(jsonPath("$.fieldErrors.rating").value("Rating must be between 1.0 and 5.0"));
+        }
+
+        @Test
+        @DisplayName("Should return 400 when averageDeliveryDays is less than 1")
+        void shouldReturn400WhenAverageDeliveryDaysIsLessThan1() throws Exception {
+            // Given
+            UUID supplierId = UUID.randomUUID();
+            UpdateSupplierRequest request = new UpdateSupplierRequest(
+                    "Valid Supplier", "BUS123456", SupplierStatus.ACTIVE, "valid@email.com",
+                    "+1-555-0123", null, null, null, 0, // Less than minimum 1
+                    null, null, null
+            );
+
+            // When & Then
+            mockMvc.perform(put("/api/v1/suppliers/{id}", supplierId)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(request)))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.status").value(400))
+                    .andExpect(jsonPath("$.error").value("Validation Failed"))
+                    .andExpect(jsonPath("$.fieldErrors.averageDeliveryDays").value("Average delivery days must be at least 1"));
+        }
+
+        @Test
+        @DisplayName("Should return 404 when supplier not found")
+        void shouldReturn404WhenSupplierNotFound() throws Exception {
+            // Given
+            UUID nonExistentId = UUID.randomUUID();
+            UpdateSupplierRequest request = createCompleteUpdateSupplierRequest();
+
+            given(supplierService.updateSupplier(eq(nonExistentId), any(UpdateSupplierRequest.class)))
+                    .willThrow(new SupplierNotFoundException(nonExistentId));
+
+            // When & Then
+            mockMvc.perform(put("/api/v1/suppliers/{id}", nonExistentId)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(request)))
+                    .andExpect(status().isNotFound())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.status").value(404))
+                    .andExpect(jsonPath("$.error").value("Supplier Not Found"))
+                    .andExpect(jsonPath("$.message").value("Supplier not found with id: " + nonExistentId))
+                    .andExpect(jsonPath("$.timestamp").exists());
+
+            then(supplierService).should().updateSupplier(eq(nonExistentId), any(UpdateSupplierRequest.class));
+        }
+
+        @Test
+        @DisplayName("Should return 409 when business ID already exists")
+        void shouldReturn409WhenBusinessIdAlreadyExists() throws Exception {
+            // Given
+            UUID supplierId = UUID.randomUUID();
+            UpdateSupplierRequest request = createCompleteUpdateSupplierRequest();
+
+            given(supplierService.updateSupplier(eq(supplierId), any(UpdateSupplierRequest.class)))
+                    .willThrow(new DuplicateBusinessIdException("BUS123456"));
+
+            // When & Then
+            mockMvc.perform(put("/api/v1/suppliers/{id}", supplierId)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(request)))
+                    .andExpect(status().isConflict())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.status").value(409))
+                    .andExpect(jsonPath("$.error").value("Duplicate Business ID"))
+                    .andExpect(jsonPath("$.message").value("Supplier with Business ID 'BUS123456' already exists"));
+
+            then(supplierService).should().updateSupplier(eq(supplierId), any(UpdateSupplierRequest.class));
+        }
+
+        @Test
+        @DisplayName("Should return 400 for invalid UUID format")
+        void shouldReturn400ForInvalidUuidFormat() throws Exception {
+            // Given
+            UpdateSupplierRequest request = createCompleteUpdateSupplierRequest();
+
+            // When & Then
+            mockMvc.perform(put("/api/v1/suppliers/{id}", "invalid-uuid")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(request)))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.status").value(400))
+                    .andExpect(jsonPath("$.error").value("Invalid Parameter"))
+                    .andExpect(jsonPath("$.parameter").value("id"))
+                    .andExpect(jsonPath("$.invalidValue").value("invalid-uuid"))
+                    .andExpect(jsonPath("$.expectedType").value("UUID"));
+        }
+
+        @Test
+        @DisplayName("Should handle valid address in request")
+        void shouldHandleValidAddressInRequest() throws Exception {
+            // Given
+            UUID supplierId = UUID.randomUUID();
+            Address address = new Address("123 Test St", "Test City", "TS", "12345", "USA");
+            UpdateSupplierRequest request = new UpdateSupplierRequest(
+                    "Test Supplier", "BUS123456", SupplierStatus.ACTIVE, "test@supplier.com",
+                    "+1-555-0123", null, address, null, null, null, null, null
+            );
+            SupplierResponse response = new SupplierResponse(
+                    supplierId, "Test Supplier", "BUS123456", SupplierStatus.ACTIVE,
+                    "test@supplier.com", "+1-555-0123", null, address,
+                    null, null, null, null, null,
+                    true, LocalDateTime.now(), LocalDateTime.now()
+            );
+
+            given(supplierService.updateSupplier(eq(supplierId), any(UpdateSupplierRequest.class))).willReturn(response);
+
+            // When & Then
+            mockMvc.perform(put("/api/v1/suppliers/{id}", supplierId)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(request)))
+                    .andExpect(status().isOk())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.address.streetAddress").value("123 Test St"))
+                    .andExpect(jsonPath("$.address.city").value("Test City"))
+                    .andExpect(jsonPath("$.address.stateProvince").value("TS"))
+                    .andExpect(jsonPath("$.address.postalCode").value("12345"))
+                    .andExpect(jsonPath("$.address.country").value("USA"));
+
+            then(supplierService).should().updateSupplier(eq(supplierId), any(UpdateSupplierRequest.class));
+        }
+
+        @Test
+        @DisplayName("Should verify all response fields are present after update")
+        void shouldVerifyAllResponseFieldsArePresentAfterUpdate() throws Exception {
+            // Given
+            UUID supplierId = UUID.randomUUID();
+            UpdateSupplierRequest request = createCompleteUpdateSupplierRequest();
+            SupplierResponse response = createCompleteSupplierResponse();
+
+            given(supplierService.updateSupplier(eq(supplierId), any(UpdateSupplierRequest.class))).willReturn(response);
+
+            // When & Then
+            mockMvc.perform(put("/api/v1/suppliers/{id}", supplierId)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(request)))
+                    .andExpect(status().isOk())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.id").exists())
+                    .andExpect(jsonPath("$.name").exists())
+                    .andExpect(jsonPath("$.businessId").exists())
+                    .andExpect(jsonPath("$.status").exists())
+                    .andExpect(jsonPath("$.email").exists())
+                    .andExpect(jsonPath("$.phone").exists())
+                    .andExpect(jsonPath("$.contactPerson").exists())
+                    .andExpect(jsonPath("$.address").exists())
+                    .andExpect(jsonPath("$.paymentTerms").exists())
+                    .andExpect(jsonPath("$.averageDeliveryDays").exists())
+                    .andExpect(jsonPath("$.supplierType").exists())
+                    .andExpect(jsonPath("$.notes").exists())
+                    .andExpect(jsonPath("$.rating").exists())
+                    .andExpect(jsonPath("$.active").exists())
+                    .andExpect(jsonPath("$.createdAt").exists())
+                    .andExpect(jsonPath("$.updatedAt").exists());
+
+            then(supplierService).should().updateSupplier(eq(supplierId), any(UpdateSupplierRequest.class));
+        }
+
+        private UpdateSupplierRequest createCompleteUpdateSupplierRequest() {
+            return new UpdateSupplierRequest(
+                    "ABC Electronics Ltd",
+                    "BUS123456",
+                    SupplierStatus.ACTIVE,
+                    "contact@abcelectronics.com",
+                    "+1-555-0123",
+                    "John Smith",
+                    new Address("123 Industrial Blvd", "Tech City", "CA", "90210", "USA"),
+                    "NET30",
+                    7,
+                    SupplierType.DOMESTIC,
+                    "Reliable supplier with good quality products",
+                    BigDecimal.valueOf(4.5)
+            );
         }
     }
 
