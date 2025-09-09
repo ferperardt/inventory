@@ -7,7 +7,6 @@ import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Entity
@@ -52,7 +51,7 @@ public class Product extends BaseEntity {
         this.sku = sku;
         this.price = price;
     }
-    
+
     public boolean isLowStock() {
         return stockQuantity != null && minStockLevel != null && stockQuantity <= minStockLevel;
     }
