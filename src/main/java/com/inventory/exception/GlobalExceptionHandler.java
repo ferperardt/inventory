@@ -47,6 +47,17 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(errors);
     }
 
+    @ExceptionHandler(SupplierNotFoundException.class)
+    public ResponseEntity<Map<String, Object>> handleSupplierNotFoundException(SupplierNotFoundException ex) {
+        Map<String, Object> errors = new HashMap<>();
+        errors.put("timestamp", LocalDateTime.now());
+        errors.put("status", HttpStatus.NOT_FOUND.value());
+        errors.put("error", "Supplier Not Found");
+        errors.put("message", ex.getMessage());
+
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(errors);
+    }
+
     @ExceptionHandler(DuplicateSkuException.class)
     public ResponseEntity<Map<String, Object>> handleDuplicateSkuException(DuplicateSkuException ex) {
         Map<String, Object> errors = new HashMap<>();

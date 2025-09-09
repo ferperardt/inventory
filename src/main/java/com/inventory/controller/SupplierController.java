@@ -16,6 +16,7 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/v1/suppliers")
@@ -39,6 +40,12 @@ public class SupplierController {
             @PageableDefault(size = 20, sort = "name") Pageable pageable) {
         Page<SupplierResponse> suppliers = supplierService.getAllSuppliers(pageable);
         return ResponseEntity.ok(suppliers);
+    }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<SupplierResponse> getSupplierById(@PathVariable UUID id) {
+        SupplierResponse supplier = supplierService.getSupplierById(id);
+        return ResponseEntity.ok(supplier);
     }
 
     @GetMapping("/search")

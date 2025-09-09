@@ -7,6 +7,7 @@ import com.inventory.entity.Address;
 import com.inventory.enums.SupplierStatus;
 import com.inventory.enums.SupplierType;
 import com.inventory.exception.DuplicateBusinessIdException;
+import com.inventory.exception.SupplierNotFoundException;
 import com.inventory.exception.GlobalExceptionHandler;
 import com.inventory.service.SupplierService;
 import org.junit.jupiter.api.BeforeEach;
@@ -519,6 +520,197 @@ class SupplierControllerTest {
                     .andExpect(jsonPath("$.content[0].updatedAt").exists());
 
             then(supplierService).should().getAllSuppliers(any(Pageable.class));
+        }
+    }
+
+    @Nested
+    @DisplayName("GET /api/v1/suppliers/{id}")
+    class GetSupplierByIdTests {
+
+        @Test
+        @DisplayName("Should return supplier when found")
+        void shouldReturnSupplierWhenFound() throws Exception {
+            // Given
+            UUID supplierId = UUID.randomUUID();
+            SupplierResponse supplierResponse = createCompleteSupplierResponse();
+
+            given(supplierService.getSupplierById(supplierId)).willReturn(supplierResponse);
+
+            // When & Then
+            mockMvc.perform(get("/api/v1/suppliers/{id}", supplierId))
+                    .andExpect(status().isOk())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.id").exists())
+                    .andExpect(jsonPath("$.name").value("ABC Electronics Ltd"))
+                    .andExpect(jsonPath("$.businessId").value("BUS123456"))
+                    .andExpect(jsonPath("$.status").value("ACTIVE"))
+                    .andExpect(jsonPath("$.email").value("contact@abcelectronics.com"))
+                    .andExpect(jsonPath("$.phone").value("+1-555-0123"))
+                    .andExpect(jsonPath("$.contactPerson").value("John Smith"))
+                    .andExpect(jsonPath("$.address.streetAddress").value("123 Industrial Blvd"))
+                    .andExpect(jsonPath("$.address.city").value("Tech City"))
+                    .andExpect(jsonPath("$.address.stateProvince").value("CA"))
+                    .andExpect(jsonPath("$.address.postalCode").value("90210"))
+                    .andExpect(jsonPath("$.address.country").value("USA"))
+                    .andExpect(jsonPath("$.paymentTerms").value("NET30"))
+                    .andExpect(jsonPath("$.averageDeliveryDays").value(7))
+                    .andExpect(jsonPath("$.supplierType").value("DOMESTIC"))
+                    .andExpect(jsonPath("$.notes").value("Reliable supplier with good quality products"))
+                    .andExpect(jsonPath("$.rating").value(4.5))
+                    .andExpect(jsonPath("$.active").value(true))
+                    .andExpect(jsonPath("$.createdAt").exists())
+                    .andExpect(jsonPath("$.updatedAt").exists());
+
+            then(supplierService).should().getSupplierById(supplierId);
+        }
+
+        @Test
+        @DisplayName("Should return 404 when supplier not found")
+        void shouldReturn404WhenSupplierNotFound() throws Exception {
+            // Given
+            UUID nonExistentId = UUID.randomUUID();
+
+            given(supplierService.getSupplierById(nonExistentId))
+                    .willThrow(new SupplierNotFoundException(nonExistentId));
+
+            // When & Then
+            mockMvc.perform(get("/api/v1/suppliers/{id}", nonExistentId))
+                    .andExpect(status().isNotFound())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.status").value(404))
+                    .andExpect(jsonPath("$.error").value("Supplier Not Found"))
+                    .andExpect(jsonPath("$.message").value("Supplier not found with id: " + nonExistentId))
+                    .andExpect(jsonPath("$.timestamp").exists());
+
+            then(supplierService).should().getSupplierById(nonExistentId);
+        }
+
+        @Test
+        @DisplayName("Should return 400 for invalid UUID format")
+        void shouldReturn400ForInvalidUuidFormat() throws Exception {
+            // When & Then
+            mockMvc.perform(get("/api/v1/suppliers/{id}", "invalid-uuid"))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.status").value(400))
+                    .andExpect(jsonPath("$.error").value("Invalid Parameter"))
+                    .andExpect(jsonPath("$.parameter").value("id"))
+                    .andExpect(jsonPath("$.invalidValue").value("invalid-uuid"))
+                    .andExpect(jsonPath("$.expectedType").value("UUID"));
+        }
+
+        @Test
+        @DisplayName("Should handle supplier with minimal data")
+        void shouldHandleSupplierWithMinimalData() throws Exception {
+            // Given
+            UUID supplierId = UUID.randomUUID();
+            SupplierResponse minimalSupplier = new SupplierResponse(
+                    supplierId, "Minimal Supplier", null, SupplierStatus.ACTIVE,
+                    "minimal@supplier.com", "+1-555-9999", null, null,
+                    null, null, null, null, null,
+                    true, LocalDateTime.now(), LocalDateTime.now()
+            );
+
+            given(supplierService.getSupplierById(supplierId)).willReturn(minimalSupplier);
+
+            // When & Then
+            mockMvc.perform(get("/api/v1/suppliers/{id}", supplierId))
+                    .andExpect(status().isOk())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.name").value("Minimal Supplier"))
+                    .andExpect(jsonPath("$.email").value("minimal@supplier.com"))
+                    .andExpect(jsonPath("$.phone").value("+1-555-9999"))
+                    .andExpect(jsonPath("$.active").value(true))
+                    .andExpect(jsonPath("$.businessId").doesNotExist())
+                    .andExpect(jsonPath("$.contactPerson").doesNotExist())
+                    .andExpect(jsonPath("$.address").doesNotExist());
+
+            then(supplierService).should().getSupplierById(supplierId);
+        }
+
+        @Test
+        @DisplayName("Should handle supplier with different status")
+        void shouldHandleSupplierWithDifferentStatus() throws Exception {
+            // Given
+            UUID supplierId = UUID.randomUUID();
+            SupplierResponse supplierResponse = createSupplierResponse("Test Supplier");
+            SupplierResponse inactiveSupplier = new SupplierResponse(
+                    supplierResponse.id(), supplierResponse.name(), supplierResponse.businessId(),
+                    SupplierStatus.INACTIVE, supplierResponse.email(), supplierResponse.phone(),
+                    supplierResponse.contactPerson(), supplierResponse.address(), supplierResponse.paymentTerms(),
+                    supplierResponse.averageDeliveryDays(), supplierResponse.supplierType(),
+                    supplierResponse.notes(), supplierResponse.rating(), supplierResponse.active(),
+                    supplierResponse.createdAt(), supplierResponse.updatedAt()
+            );
+
+            given(supplierService.getSupplierById(supplierId)).willReturn(inactiveSupplier);
+
+            // When & Then
+            mockMvc.perform(get("/api/v1/suppliers/{id}", supplierId))
+                    .andExpect(status().isOk())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.status").value("INACTIVE"));
+
+            then(supplierService).should().getSupplierById(supplierId);
+        }
+
+        @Test
+        @DisplayName("Should handle supplier with different supplier type")
+        void shouldHandleSupplierWithDifferentSupplierType() throws Exception {
+            // Given
+            UUID supplierId = UUID.randomUUID();
+            SupplierResponse supplierResponse = createSupplierResponse("International Supplier");
+            SupplierResponse internationalSupplier = new SupplierResponse(
+                    supplierResponse.id(), supplierResponse.name(), supplierResponse.businessId(),
+                    supplierResponse.status(), supplierResponse.email(), supplierResponse.phone(),
+                    supplierResponse.contactPerson(), supplierResponse.address(), supplierResponse.paymentTerms(),
+                    supplierResponse.averageDeliveryDays(), SupplierType.INTERNATIONAL,
+                    supplierResponse.notes(), supplierResponse.rating(), supplierResponse.active(),
+                    supplierResponse.createdAt(), supplierResponse.updatedAt()
+            );
+
+            given(supplierService.getSupplierById(supplierId)).willReturn(internationalSupplier);
+
+            // When & Then
+            mockMvc.perform(get("/api/v1/suppliers/{id}", supplierId))
+                    .andExpect(status().isOk())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.supplierType").value("INTERNATIONAL"));
+
+            then(supplierService).should().getSupplierById(supplierId);
+        }
+
+        @Test
+        @DisplayName("Should verify all response fields are present")
+        void shouldVerifyAllResponseFieldsArePresent() throws Exception {
+            // Given
+            UUID supplierId = UUID.randomUUID();
+            SupplierResponse completeResponse = createCompleteSupplierResponse();
+
+            given(supplierService.getSupplierById(supplierId)).willReturn(completeResponse);
+
+            // When & Then
+            mockMvc.perform(get("/api/v1/suppliers/{id}", supplierId))
+                    .andExpect(status().isOk())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.id").exists())
+                    .andExpect(jsonPath("$.name").exists())
+                    .andExpect(jsonPath("$.businessId").exists())
+                    .andExpect(jsonPath("$.status").exists())
+                    .andExpect(jsonPath("$.email").exists())
+                    .andExpect(jsonPath("$.phone").exists())
+                    .andExpect(jsonPath("$.contactPerson").exists())
+                    .andExpect(jsonPath("$.address").exists())
+                    .andExpect(jsonPath("$.paymentTerms").exists())
+                    .andExpect(jsonPath("$.averageDeliveryDays").exists())
+                    .andExpect(jsonPath("$.supplierType").exists())
+                    .andExpect(jsonPath("$.notes").exists())
+                    .andExpect(jsonPath("$.rating").exists())
+                    .andExpect(jsonPath("$.active").exists())
+                    .andExpect(jsonPath("$.createdAt").exists())
+                    .andExpect(jsonPath("$.updatedAt").exists());
+
+            then(supplierService).should().getSupplierById(supplierId);
         }
     }
 

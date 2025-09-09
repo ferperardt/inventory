@@ -7,6 +7,7 @@ import com.inventory.entity.Supplier;
 import com.inventory.enums.SupplierStatus;
 import com.inventory.enums.SupplierType;
 import com.inventory.exception.DuplicateBusinessIdException;
+import com.inventory.exception.SupplierNotFoundException;
 import com.inventory.mapper.SupplierMapper;
 import com.inventory.repository.SupplierRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -26,6 +27,7 @@ import org.springframework.data.jpa.domain.Specification;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -905,6 +907,128 @@ class SupplierServiceTest {
             assertThat(result.isLast()).isFalse();
             assertThat(result.hasNext()).isTrue();
             assertThat(result.hasPrevious()).isTrue();
+        }
+    }
+
+    @Nested
+    @DisplayName("getSupplierById() Tests")
+    class GetSupplierByIdTests {
+
+        @Test
+        @DisplayName("Should return supplier when exists and is active")
+        void shouldReturnSupplierWhenExistsAndIsActive() {
+            // Given
+            UUID supplierId = UUID.randomUUID();
+            Supplier activeSupplier = createSupplier();
+            activeSupplier.setId(supplierId);
+            SupplierResponse expectedResponse = createSupplierResponse();
+
+            given(supplierRepository.findById(supplierId)).willReturn(Optional.of(activeSupplier));
+            given(supplierMapper.toResponse(activeSupplier)).willReturn(expectedResponse);
+
+            // When
+            SupplierResponse result = supplierService.getSupplierById(supplierId);
+
+            // Then
+            assertThat(result).isEqualTo(expectedResponse);
+            then(supplierRepository).should().findById(supplierId);
+            then(supplierMapper).should().toResponse(activeSupplier);
+        }
+
+        @Test
+        @DisplayName("Should throw SupplierNotFoundException when supplier does not exist")
+        void shouldThrowSupplierNotFoundExceptionWhenSupplierDoesNotExist() {
+            // Given
+            UUID nonExistentId = UUID.randomUUID();
+
+            given(supplierRepository.findById(nonExistentId)).willReturn(Optional.empty());
+
+            // When & Then
+            assertThatThrownBy(() -> supplierService.getSupplierById(nonExistentId))
+                    .isInstanceOf(SupplierNotFoundException.class)
+                    .hasMessage("Supplier not found with id: " + nonExistentId);
+
+            then(supplierRepository).should().findById(nonExistentId);
+            then(supplierMapper).should(never()).toResponse(any());
+        }
+
+        @Test
+        @DisplayName("Should throw SupplierNotFoundException when supplier exists but is inactive")
+        void shouldThrowSupplierNotFoundExceptionWhenSupplierExistsButIsInactive() {
+            // Given
+            UUID supplierId = UUID.randomUUID();
+            Supplier inactiveSupplier = createSupplier();
+            inactiveSupplier.setId(supplierId);
+            inactiveSupplier.softDelete(); // This sets active to false
+
+            given(supplierRepository.findById(supplierId)).willReturn(Optional.of(inactiveSupplier));
+
+            // When & Then
+            assertThatThrownBy(() -> supplierService.getSupplierById(supplierId))
+                    .isInstanceOf(SupplierNotFoundException.class)
+                    .hasMessage("Supplier not found with id: " + supplierId);
+
+            then(supplierRepository).should().findById(supplierId);
+            then(supplierMapper).should(never()).toResponse(any());
+        }
+
+        @Test
+        @DisplayName("Should handle different supplier data correctly")
+        void shouldHandleDifferentSupplierDataCorrectly() {
+            // Given
+            UUID supplierId = UUID.randomUUID();
+            Supplier supplier = createSupplier("Tech Solutions Ltd");
+            supplier.setId(supplierId);
+            supplier.setEmail("contact@techsolutions.com");
+            supplier.setSupplierType(SupplierType.INTERNATIONAL);
+            SupplierResponse expectedResponse = createSupplierResponse("Tech Solutions Ltd");
+
+            given(supplierRepository.findById(supplierId)).willReturn(Optional.of(supplier));
+            given(supplierMapper.toResponse(supplier)).willReturn(expectedResponse);
+
+            // When
+            SupplierResponse result = supplierService.getSupplierById(supplierId);
+
+            // Then
+            assertThat(result).isEqualTo(expectedResponse);
+            assertThat(result.name()).isEqualTo("Tech Solutions Ltd");
+            then(supplierRepository).should().findById(supplierId);
+            then(supplierMapper).should().toResponse(supplier);
+        }
+
+        @Test
+        @DisplayName("Should verify active filter is applied correctly")
+        void shouldVerifyActiveFilterIsAppliedCorrectly() {
+            // Given
+            UUID supplierId = UUID.randomUUID();
+            Supplier supplier = createSupplier();
+            supplier.setId(supplierId);
+            SupplierResponse expectedResponse = createSupplierResponse();
+
+            given(supplierRepository.findById(supplierId)).willReturn(Optional.of(supplier));
+            given(supplierMapper.toResponse(supplier)).willReturn(expectedResponse);
+
+            // When
+            SupplierResponse result = supplierService.getSupplierById(supplierId);
+
+            // Then
+            assertThat(result).isNotNull();
+            then(supplierRepository).should().findById(supplierId);
+            then(supplierMapper).should().toResponse(supplier);
+        }
+
+        @Test
+        @DisplayName("Should verify correct exception message format")
+        void shouldVerifyCorrectExceptionMessageFormat() {
+            // Given
+            UUID supplierId = UUID.fromString("123e4567-e89b-12d3-a456-426614174000");
+
+            given(supplierRepository.findById(supplierId)).willReturn(Optional.empty());
+
+            // When & Then
+            assertThatThrownBy(() -> supplierService.getSupplierById(supplierId))
+                    .isInstanceOf(SupplierNotFoundException.class)
+                    .hasMessage("Supplier not found with id: 123e4567-e89b-12d3-a456-426614174000");
         }
     }
 

@@ -6,6 +6,7 @@ import com.inventory.entity.Supplier;
 import com.inventory.enums.SupplierStatus;
 import com.inventory.enums.SupplierType;
 import com.inventory.exception.DuplicateBusinessIdException;
+import com.inventory.exception.SupplierNotFoundException;
 import com.inventory.mapper.SupplierMapper;
 import com.inventory.repository.SupplierRepository;
 import com.inventory.specification.SupplierSpecification;
@@ -16,6 +17,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.util.UUID;
 
 @Service
 public class SupplierService {
@@ -32,6 +34,15 @@ public class SupplierService {
     public Page<SupplierResponse> getAllSuppliers(Pageable pageable) {
         return supplierRepository.findByActiveTrue(pageable)
                 .map(supplierMapper::toResponse);
+    }
+
+    @Transactional(readOnly = true)
+    public SupplierResponse getSupplierById(UUID id) {
+        Supplier supplier = supplierRepository.findById(id)
+                .filter(Supplier::getActive)
+                .orElseThrow(() -> new SupplierNotFoundException(id));
+
+        return supplierMapper.toResponse(supplier);
     }
 
     @Transactional
