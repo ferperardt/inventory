@@ -2,6 +2,7 @@ package com.inventory.dto.response;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 public record ProductResponse(
@@ -16,6 +17,7 @@ public record ProductResponse(
         Boolean active,
         Boolean lowStock,
         LocalDateTime createdAt,
-        LocalDateTime updatedAt
+        LocalDateTime updatedAt,
+        List<SupplierResponse> suppliers
 ) {
 }

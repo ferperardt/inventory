@@ -74,7 +74,8 @@ class ProductControllerTest {
             // Given
             CreateProductRequest request = new CreateProductRequest(
                     "iPhone 15", "Latest iPhone", "IPHONE15",
-                    BigDecimal.valueOf(999.99), 10, 5, "electronics"
+                    BigDecimal.valueOf(999.99), 10, 5, "electronics",
+                    List.of(UUID.randomUUID())
             );
             ProductResponse response = createProductResponse();
 
@@ -99,7 +100,8 @@ class ProductControllerTest {
             // Given
             CreateProductRequest invalidRequest = new CreateProductRequest(
                     "", "Description", "INVALID_SKU_WITH_LOWERCASE", // Invalid name and SKU
-                    BigDecimal.valueOf(-1), -5, -1, "electronics" // Invalid price and quantities
+                    BigDecimal.valueOf(-1), -5, -1, "electronics", // Invalid price and quantities
+                    List.of(UUID.randomUUID())
             );
 
             // When & Then
@@ -115,7 +117,8 @@ class ProductControllerTest {
             // Given
             CreateProductRequest request = new CreateProductRequest(
                     "iPhone 15", "Latest iPhone", "IPHONE15",
-                    BigDecimal.valueOf(999.99), 10, 5, "electronics"
+                    BigDecimal.valueOf(999.99), 10, 5, "electronics",
+                    List.of(UUID.randomUUID())
             );
 
             given(productService.createProduct(any(CreateProductRequest.class)))
@@ -134,7 +137,8 @@ class ProductControllerTest {
             // Given
             CreateProductRequest request = new CreateProductRequest(
                     "iPhone 15", "Latest iPhone", "IPHONE15",
-                    BigDecimal.valueOf(999.99), 5, 10, "electronics" // stock < minStock
+                    BigDecimal.valueOf(999.99), 5, 10, "electronics", // stock < minStock
+                    List.of(UUID.randomUUID())
             );
 
             given(productService.createProduct(any(CreateProductRequest.class)))
@@ -663,7 +667,8 @@ class ProductControllerTest {
                 true,
                 false,
                 LocalDateTime.now(),
-                LocalDateTime.now()
+                LocalDateTime.now(),
+                List.of()
         );
     }
 }

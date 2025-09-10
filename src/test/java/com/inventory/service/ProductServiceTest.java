@@ -5,12 +5,14 @@ import com.inventory.dto.request.CreateStockMovementRequest;
 import com.inventory.dto.request.UpdateProductRequest;
 import com.inventory.dto.response.ProductResponse;
 import com.inventory.entity.Product;
+import com.inventory.entity.Supplier;
 import com.inventory.enums.MovementReason;
 import com.inventory.enums.MovementType;
 import com.inventory.exception.DuplicateSkuException;
 import com.inventory.exception.InvalidStockLevelException;
 import com.inventory.exception.ProductHasStockException;
 import com.inventory.exception.ProductNotFoundException;
+import com.inventory.exception.SupplierNotFoundException;
 import com.inventory.mapper.ProductMapper;
 import com.inventory.repository.ProductRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -53,11 +55,14 @@ class ProductServiceTest {
     @Mock
     private StockMovementService stockMovementService;
 
+    @Mock
+    private SupplierService supplierService;
+
     private ProductService productService;
 
     @BeforeEach
     void setUp() {
-        productService = new ProductService(productRepository, productMapper, stockMovementService);
+        productService = new ProductService(productRepository, productMapper, stockMovementService, supplierService);
     }
 
     @Nested
@@ -68,14 +73,18 @@ class ProductServiceTest {
         @DisplayName("Should create product successfully")
         void shouldCreateProductSuccessfully() {
             // Given
+            UUID supplierId = UUID.randomUUID();
             CreateProductRequest request = new CreateProductRequest(
                     "iPhone 15", "Latest iPhone", "IPHONE15",
-                    BigDecimal.valueOf(999.99), 10, 5, "electronics"
+                    BigDecimal.valueOf(999.99), 10, 5, "electronics",
+                    List.of(supplierId)
             );
             Product product = createProduct();
+            Supplier supplier = createSupplier();
             ProductResponse expectedResponse = createProductResponse();
 
             given(productRepository.existsBySkuAndActiveTrue(request.sku())).willReturn(false);
+            given(supplierService.getSupplierEntityById(supplierId)).willReturn(supplier);
             given(productMapper.toEntity(request)).willReturn(product);
             given(productRepository.save(product)).willReturn(product);
             given(productMapper.toResponse(product)).willReturn(expectedResponse);
@@ -86,6 +95,7 @@ class ProductServiceTest {
             // Then
             assertThat(result).isEqualTo(expectedResponse);
             then(productRepository).should().existsBySkuAndActiveTrue(request.sku());
+            then(supplierService).should().getSupplierEntityById(supplierId);
             then(productMapper).should().toEntity(request);
             then(productRepository).should().save(product);
             then(stockMovementService).should().createStockMovement(any(CreateStockMovementRequest.class));
@@ -98,7 +108,8 @@ class ProductServiceTest {
             // Given
             CreateProductRequest request = new CreateProductRequest(
                     "iPhone 15", "Latest iPhone", "IPHONE15",
-                    BigDecimal.valueOf(999.99), 10, 5, "electronics"
+                    BigDecimal.valueOf(999.99), 10, 5, "electronics",
+                    List.of(UUID.randomUUID())
             );
 
             given(productRepository.existsBySkuAndActiveTrue(request.sku())).willReturn(true);
@@ -118,7 +129,8 @@ class ProductServiceTest {
             // Given
             CreateProductRequest request = new CreateProductRequest(
                     "iPhone 15", "Latest iPhone", "IPHONE15",
-                    BigDecimal.valueOf(999.99), 5, 10, "electronics"
+                    BigDecimal.valueOf(999.99), 5, 10, "electronics",
+                    List.of(UUID.randomUUID())
             );
 
             given(productRepository.existsBySkuAndActiveTrue(request.sku())).willReturn(false);
@@ -140,12 +152,14 @@ class ProductServiceTest {
             // Given
             CreateProductRequest request = new CreateProductRequest(
                     "iPhone 15", "Latest iPhone", "IPHONE15",
-                    BigDecimal.valueOf(999.99), 0, 0, "electronics"
+                    BigDecimal.valueOf(999.99), 0, 0, "electronics",
+                    List.of(UUID.randomUUID())
             );
             Product product = createProduct(0);
             ProductResponse expectedResponse = createProductResponse();
 
             given(productRepository.existsBySkuAndActiveTrue(request.sku())).willReturn(false);
+            given(supplierService.getSupplierEntityById(any())).willReturn(createSupplier());
             given(productMapper.toEntity(request)).willReturn(product);
             given(productRepository.save(product)).willReturn(product);
             given(productMapper.toResponse(product)).willReturn(expectedResponse);
@@ -173,12 +187,14 @@ class ProductServiceTest {
             // Given
             CreateProductRequest request = new CreateProductRequest(
                     "iPhone 15", "Latest iPhone", "IPHONE15",
-                    BigDecimal.valueOf(999.99), null, 0, "electronics"
+                    BigDecimal.valueOf(999.99), null, 0, "electronics",
+                    List.of(UUID.randomUUID())
             );
             Product product = createProduct(0);
             ProductResponse expectedResponse = createProductResponse();
 
             given(productRepository.existsBySkuAndActiveTrue(request.sku())).willReturn(false);
+            given(supplierService.getSupplierEntityById(any())).willReturn(createSupplier());
             given(productMapper.toEntity(request)).willReturn(product);
             given(productRepository.save(product)).willReturn(product);
             given(productMapper.toResponse(product)).willReturn(expectedResponse);
@@ -206,12 +222,14 @@ class ProductServiceTest {
             // Given
             CreateProductRequest request = new CreateProductRequest(
                     "iPhone 15", "Latest iPhone", "IPHONE15",
-                    BigDecimal.valueOf(999.99), 15, 5, "electronics"
+                    BigDecimal.valueOf(999.99), 15, 5, "electronics",
+                    List.of(UUID.randomUUID())
             );
             Product product = createProduct(15);
             ProductResponse expectedResponse = createProductResponse();
 
             given(productRepository.existsBySkuAndActiveTrue(request.sku())).willReturn(false);
+            given(supplierService.getSupplierEntityById(any())).willReturn(createSupplier());
             given(productMapper.toEntity(request)).willReturn(product);
             given(productRepository.save(product)).willReturn(product);
             given(productMapper.toResponse(product)).willReturn(expectedResponse);
@@ -229,6 +247,31 @@ class ProductServiceTest {
                         movementRequest.reference().equals("Initial stock on product creation") &&
                         movementRequest.notes().equals("Initial stock set during product creation");
             }));
+        }
+
+        @Test
+        @DisplayName("Should throw SupplierNotFoundException when supplier does not exist")
+        void shouldThrowSupplierNotFoundExceptionWhenSupplierDoesNotExist() {
+            // Given
+            UUID supplierId = UUID.randomUUID();
+            CreateProductRequest request = new CreateProductRequest(
+                    "iPhone 15", "Latest iPhone", "IPHONE15",
+                    BigDecimal.valueOf(999.99), 10, 5, "electronics",
+                    List.of(supplierId)
+            );
+
+            given(productRepository.existsBySkuAndActiveTrue(request.sku())).willReturn(false);
+            given(supplierService.getSupplierEntityById(supplierId))
+                    .willThrow(new SupplierNotFoundException(supplierId));
+
+            // When & Then
+            assertThatThrownBy(() -> productService.createProduct(request))
+                    .isInstanceOf(SupplierNotFoundException.class);
+
+            then(productRepository).should().existsBySkuAndActiveTrue(request.sku());
+            then(supplierService).should().getSupplierEntityById(supplierId);
+            then(productMapper).should(never()).toEntity(any());
+            then(productRepository).should(never()).save(any());
         }
     }
 
@@ -593,6 +636,14 @@ class ProductServiceTest {
         return product;
     }
 
+    private Supplier createSupplier() {
+        Supplier supplier = new Supplier();
+        supplier.setId(UUID.randomUUID());
+        supplier.setName("Test Supplier");
+        supplier.setEmail("test@supplier.com");
+        supplier.setPhone("123456789");
+        return supplier;
+    }
 
     private ProductResponse createProductResponse() {
         return new ProductResponse(
@@ -607,7 +658,8 @@ class ProductServiceTest {
                 true,
                 false,
                 LocalDateTime.now(),
-                LocalDateTime.now()
+                LocalDateTime.now(),
+                List.of()
         );
     }
 }

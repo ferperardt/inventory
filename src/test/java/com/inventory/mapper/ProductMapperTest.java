@@ -13,6 +13,7 @@ import org.springframework.test.context.ActiveProfiles;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -294,7 +295,8 @@ class ProductMapperTest {
             // Given
             CreateProductRequest request = new CreateProductRequest(
                     "Test Product", null, "TEST-SKU",
-                    BigDecimal.valueOf(100.00), null, null, null
+                    BigDecimal.valueOf(100.00), null, null, null,
+                    List.of(UUID.randomUUID())
             );
 
             // When
@@ -317,7 +319,8 @@ class ProductMapperTest {
             // Given
             CreateProductRequest request = new CreateProductRequest(
                     "Test Product", "", "TEST-SKU",
-                    BigDecimal.valueOf(100.00), 10, 5, ""
+                    BigDecimal.valueOf(100.00), 10, 5, "",
+                    List.of(UUID.randomUUID())
             );
 
             // When
@@ -503,7 +506,8 @@ class ProductMapperTest {
                 BigDecimal.valueOf(999.99),
                 10,
                 5,
-                "electronics"
+                "electronics",
+                List.of(UUID.randomUUID())
         );
     }
 

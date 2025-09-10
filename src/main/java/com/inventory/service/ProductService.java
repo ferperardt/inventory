@@ -5,12 +5,14 @@ import com.inventory.dto.request.CreateStockMovementRequest;
 import com.inventory.dto.request.UpdateProductRequest;
 import com.inventory.dto.response.ProductResponse;
 import com.inventory.entity.Product;
+import com.inventory.entity.Supplier;
 import com.inventory.enums.MovementReason;
 import com.inventory.enums.MovementType;
 import com.inventory.exception.DuplicateSkuException;
 import com.inventory.exception.InvalidStockLevelException;
 import com.inventory.exception.ProductHasStockException;
 import com.inventory.exception.ProductNotFoundException;
+import com.inventory.exception.SupplierNotFoundException;
 import com.inventory.mapper.ProductMapper;
 import com.inventory.repository.ProductRepository;
 import com.inventory.specification.ProductSpecification;
@@ -21,6 +23,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -29,11 +32,13 @@ public class ProductService {
     private final ProductRepository productRepository;
     private final ProductMapper productMapper;
     private final StockMovementService stockMovementService;
+    private final SupplierService supplierService;
 
-    public ProductService(ProductRepository productRepository, ProductMapper productMapper, StockMovementService stockMovementService) {
+    public ProductService(ProductRepository productRepository, ProductMapper productMapper, StockMovementService stockMovementService, SupplierService supplierService) {
         this.productRepository = productRepository;
         this.productMapper = productMapper;
         this.stockMovementService = stockMovementService;
+        this.supplierService = supplierService;
     }
 
     @Transactional
@@ -46,7 +51,19 @@ public class ProductService {
         // Validate business rule: stock quantity should not be below minimum level
         validateStockLevel(request.stockQuantity(), request.minStockLevel());
 
+        // Validate suppliers exist
+        List<Supplier> suppliers = request.supplierIds().stream()
+                .map(supplierId -> {
+                    try {
+                        return supplierService.getSupplierEntityById(supplierId);
+                    } catch (Exception e) {
+                        throw new SupplierNotFoundException(supplierId);
+                    }
+                })
+                .toList();
+
         Product product = productMapper.toEntity(request);
+        product.setSuppliers(suppliers);
         Product savedProduct = productRepository.save(product);
 
 

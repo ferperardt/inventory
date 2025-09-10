@@ -46,6 +46,13 @@ public class SupplierService {
         return supplierMapper.toResponse(supplier);
     }
 
+    @Transactional(readOnly = true)
+    public Supplier getSupplierEntityById(UUID id) {
+        return supplierRepository.findById(id)
+                .filter(Supplier::getActive)
+                .orElseThrow(() -> new SupplierNotFoundException(id));
+    }
+
     @Transactional
     public SupplierResponse createSupplier(CreateSupplierRequest request) {
         if (request.businessId() != null && !request.businessId().trim().isEmpty()) {

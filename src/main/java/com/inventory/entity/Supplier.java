@@ -13,6 +13,7 @@ import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.UUID;
 
 @Entity
@@ -71,4 +72,7 @@ public class Supplier extends BaseEntity {
     @DecimalMin("1.0")
     @DecimalMax("5.0")
     private BigDecimal rating;
+    
+    @ManyToMany(mappedBy = "suppliers")
+    private List<Product> products;
 }

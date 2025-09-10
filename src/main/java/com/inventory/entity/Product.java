@@ -7,6 +7,7 @@ import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.UUID;
 
 @Entity
@@ -45,6 +46,14 @@ public class Product extends BaseEntity {
 
     @Column(length = 50)
     private String category;
+
+    @ManyToMany
+    @JoinTable(
+        name = "product_suppliers",
+        joinColumns = @JoinColumn(name = "product_id"),
+        inverseJoinColumns = @JoinColumn(name = "supplier_id")
+    )
+    private List<Supplier> suppliers;
 
     public Product(String name, String sku, BigDecimal price) {
         this.name = name;

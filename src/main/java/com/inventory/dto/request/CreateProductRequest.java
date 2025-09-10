@@ -3,6 +3,8 @@ package com.inventory.dto.request;
 import jakarta.validation.constraints.*;
 
 import java.math.BigDecimal;
+import java.util.List;
+import java.util.UUID;
 
 public record CreateProductRequest(
 
@@ -30,7 +32,10 @@ public record CreateProductRequest(
         Integer minStockLevel,
 
         @Size(max = 50, message = "Category must not exceed 50 characters")
-        String category
+        String category,
+
+        @NotEmpty(message = "At least one supplier is required")
+        List<UUID> supplierIds
 ) {
     // Construtor compacto para valores padrão
     public CreateProductRequest {
