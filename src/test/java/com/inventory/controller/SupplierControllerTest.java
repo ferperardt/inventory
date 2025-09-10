@@ -3,6 +3,7 @@ package com.inventory.controller;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.inventory.dto.request.CreateSupplierRequest;
 import com.inventory.dto.request.UpdateSupplierRequest;
+import com.inventory.dto.response.ProductResponse;
 import com.inventory.dto.response.SupplierResponse;
 import com.inventory.entity.Address;
 import com.inventory.enums.SupplierStatus;
@@ -32,6 +33,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
+import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -1434,6 +1436,424 @@ class SupplierControllerTest {
                     SupplierType.DOMESTIC,
                     "Reliable supplier with good quality products",
                     BigDecimal.valueOf(4.5)
+            );
+        }
+    }
+
+    @Nested
+    @DisplayName("GET /api/v1/suppliers/{id}/products")
+    class GetSupplierProductsTests {
+
+        @Test
+        @DisplayName("Should return 200 OK with paginated products for valid supplier")
+        void shouldReturn200OkWithPaginatedProductsForValidSupplier() throws Exception {
+            // Given
+            UUID supplierId = UUID.randomUUID();
+            ProductResponse product1 = createProductResponse("Product 1");
+            ProductResponse product2 = createProductResponse("Product 2");
+            Page<ProductResponse> page = new PageImpl<>(List.of(product1, product2), PageRequest.of(0, 20), 2);
+
+            given(supplierService.getSupplierProducts(eq(supplierId), any(Pageable.class))).willReturn(page);
+
+            // When & Then
+            mockMvc.perform(get("/api/v1/suppliers/{id}/products", supplierId))
+                    .andExpect(status().isOk())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.content").isArray())
+                    .andExpect(jsonPath("$.content").value(hasSize(2)))
+                    .andExpect(jsonPath("$.content[0].name").value("Product 1"))
+                    .andExpect(jsonPath("$.content[0].sku").exists())
+                    .andExpect(jsonPath("$.content[0].price").exists())
+                    .andExpect(jsonPath("$.content[0].active").value(true))
+                    .andExpect(jsonPath("$.content[1].name").value("Product 2"))
+                    .andExpect(jsonPath("$.content[1].sku").exists())
+                    .andExpect(jsonPath("$.content[1].price").exists())
+                    .andExpect(jsonPath("$.content[1].active").value(true))
+                    .andExpect(jsonPath("$.totalElements").value(2))
+                    .andExpect(jsonPath("$.totalPages").value(1))
+                    .andExpect(jsonPath("$.size").value(20))
+                    .andExpect(jsonPath("$.number").value(0));
+
+            then(supplierService).should().getSupplierProducts(eq(supplierId), any(Pageable.class));
+        }
+
+        @Test
+        @DisplayName("Should return 404 Not Found when supplier doesn't exist")
+        void shouldReturn404NotFoundWhenSupplierDoesNotExist() throws Exception {
+            // Given
+            UUID nonExistentSupplierId = UUID.randomUUID();
+
+            given(supplierService.getSupplierProducts(eq(nonExistentSupplierId), any(Pageable.class)))
+                    .willThrow(new SupplierNotFoundException(nonExistentSupplierId));
+
+            // When & Then
+            mockMvc.perform(get("/api/v1/suppliers/{id}/products", nonExistentSupplierId))
+                    .andExpect(status().isNotFound())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.status").value(404))
+                    .andExpect(jsonPath("$.error").value("Supplier Not Found"))
+                    .andExpect(jsonPath("$.message").value("Supplier not found with id: " + nonExistentSupplierId))
+                    .andExpect(jsonPath("$.timestamp").exists());
+
+            then(supplierService).should().getSupplierProducts(eq(nonExistentSupplierId), any(Pageable.class));
+        }
+
+        @Test
+        @DisplayName("Should handle pagination parameters correctly")
+        void shouldHandlePaginationParametersCorrectly() throws Exception {
+            // Given
+            UUID supplierId = UUID.randomUUID();
+            ProductResponse product = createProductResponse("Test Product");
+            Page<ProductResponse> page = new PageImpl<>(List.of(product), PageRequest.of(1, 10), 25);
+
+            given(supplierService.getSupplierProducts(eq(supplierId), any(Pageable.class))).willReturn(page);
+
+            // When & Then
+            mockMvc.perform(get("/api/v1/suppliers/{id}/products", supplierId)
+                            .param("page", "1")
+                            .param("size", "10")
+                            .param("sort", "name,asc"))
+                    .andExpect(status().isOk())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.content.length()").value(1))
+                    .andExpect(jsonPath("$.size").value(10))
+                    .andExpect(jsonPath("$.number").value(1))
+                    .andExpect(jsonPath("$.totalElements").value(25))
+                    .andExpect(jsonPath("$.totalPages").value(3));
+
+            then(supplierService).should().getSupplierProducts(eq(supplierId), any(Pageable.class));
+        }
+
+        @Test
+        @DisplayName("Should use default pagination when not specified")
+        void shouldUseDefaultPaginationWhenNotSpecified() throws Exception {
+            // Given
+            UUID supplierId = UUID.randomUUID();
+            ProductResponse product = createProductResponse("Test Product");
+            Page<ProductResponse> page = new PageImpl<>(List.of(product), PageRequest.of(0, 20), 1);
+
+            given(supplierService.getSupplierProducts(eq(supplierId), any(Pageable.class))).willReturn(page);
+
+            // When & Then
+            mockMvc.perform(get("/api/v1/suppliers/{id}/products", supplierId))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.size").value(20))
+                    .andExpect(jsonPath("$.number").value(0));
+
+            then(supplierService).should().getSupplierProducts(eq(supplierId), any(Pageable.class));
+        }
+
+        @Test
+        @DisplayName("Should return 400 Bad Request for invalid UUID format")
+        void shouldReturn400BadRequestForInvalidUuidFormat() throws Exception {
+            // When & Then
+            mockMvc.perform(get("/api/v1/suppliers/{id}/products", "invalid-uuid"))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.status").value(400))
+                    .andExpect(jsonPath("$.error").value("Invalid Parameter"))
+                    .andExpect(jsonPath("$.parameter").value("id"))
+                    .andExpect(jsonPath("$.invalidValue").value("invalid-uuid"))
+                    .andExpect(jsonPath("$.expectedType").value("UUID"));
+        }
+
+        @Test
+        @DisplayName("Should return empty page when supplier has no products")
+        void shouldReturnEmptyPageWhenSupplierHasNoProducts() throws Exception {
+            // Given
+            UUID supplierId = UUID.randomUUID();
+            Page<ProductResponse> emptyPage = new PageImpl<>(List.of(), PageRequest.of(0, 20), 0);
+
+            given(supplierService.getSupplierProducts(eq(supplierId), any(Pageable.class))).willReturn(emptyPage);
+
+            // When & Then
+            mockMvc.perform(get("/api/v1/suppliers/{id}/products", supplierId))
+                    .andExpect(status().isOk())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.content").isEmpty())
+                    .andExpect(jsonPath("$.totalElements").value(0))
+                    .andExpect(jsonPath("$.size").value(20));
+
+            then(supplierService).should().getSupplierProducts(eq(supplierId), any(Pageable.class));
+        }
+
+        @Test
+        @DisplayName("Should handle large page size correctly")
+        void shouldHandleLargePageSizeCorrectly() throws Exception {
+            // Given
+            UUID supplierId = UUID.randomUUID();
+            List<ProductResponse> products = List.of(
+                    createProductResponse("Product 1"),
+                    createProductResponse("Product 2")
+            );
+            Page<ProductResponse> page = new PageImpl<>(products, PageRequest.of(0, 100), 2);
+
+            given(supplierService.getSupplierProducts(eq(supplierId), any(Pageable.class))).willReturn(page);
+
+            // When & Then
+            mockMvc.perform(get("/api/v1/suppliers/{id}/products", supplierId)
+                            .param("size", "100"))
+                    .andExpect(status().isOk())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.content.length()").value(2))
+                    .andExpect(jsonPath("$.size").value(100))
+                    .andExpect(jsonPath("$.totalElements").value(2));
+
+            then(supplierService).should().getSupplierProducts(eq(supplierId), any(Pageable.class));
+        }
+
+        @Test
+        @DisplayName("Should handle page number beyond available pages")
+        void shouldHandlePageNumberBeyondAvailablePages() throws Exception {
+            // Given
+            UUID supplierId = UUID.randomUUID();
+            Page<ProductResponse> emptyPage = new PageImpl<>(List.of(), PageRequest.of(10, 5), 2);
+
+            given(supplierService.getSupplierProducts(eq(supplierId), any(Pageable.class))).willReturn(emptyPage);
+
+            // When & Then
+            mockMvc.perform(get("/api/v1/suppliers/{id}/products", supplierId)
+                            .param("page", "10")
+                            .param("size", "5"))
+                    .andExpect(status().isOk())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.content").isEmpty())
+                    .andExpect(jsonPath("$.totalElements").value(2))
+                    .andExpect(jsonPath("$.size").value(5))
+                    .andExpect(jsonPath("$.number").value(10));
+
+            then(supplierService).should().getSupplierProducts(eq(supplierId), any(Pageable.class));
+        }
+
+        @Test
+        @DisplayName("Should sort by name by default")
+        void shouldSortByNameByDefault() throws Exception {
+            // Given
+            UUID supplierId = UUID.randomUUID();
+            List<ProductResponse> products = List.of(
+                    createProductResponse("ABC Product"),
+                    createProductResponse("XYZ Product")
+            );
+            Page<ProductResponse> page = new PageImpl<>(products, PageRequest.of(0, 20), 2);
+
+            given(supplierService.getSupplierProducts(eq(supplierId), any(Pageable.class))).willReturn(page);
+
+            // When & Then
+            mockMvc.perform(get("/api/v1/suppliers/{id}/products", supplierId))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.content[0].name").value("ABC Product"))
+                    .andExpect(jsonPath("$.content[1].name").value("XYZ Product"));
+
+            then(supplierService).should().getSupplierProducts(eq(supplierId), any(Pageable.class));
+        }
+
+        @Test
+        @DisplayName("Should return products with all expected fields")
+        void shouldReturnProductsWithAllExpectedFields() throws Exception {
+            // Given
+            UUID supplierId = UUID.randomUUID();
+            ProductResponse product = createCompleteProductResponse();
+            Page<ProductResponse> page = new PageImpl<>(List.of(product), PageRequest.of(0, 20), 1);
+
+            given(supplierService.getSupplierProducts(eq(supplierId), any(Pageable.class))).willReturn(page);
+
+            // When & Then
+            mockMvc.perform(get("/api/v1/suppliers/{id}/products", supplierId))
+                    .andExpect(status().isOk())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.content[0].id").exists())
+                    .andExpect(jsonPath("$.content[0].name").value("iPhone 15"))
+                    .andExpect(jsonPath("$.content[0].description").value("Latest iPhone model"))
+                    .andExpect(jsonPath("$.content[0].sku").value("IPHONE15"))
+                    .andExpect(jsonPath("$.content[0].price").value(999.99))
+                    .andExpect(jsonPath("$.content[0].stockQuantity").value(50))
+                    .andExpect(jsonPath("$.content[0].minStockLevel").value(10))
+                    .andExpect(jsonPath("$.content[0].category").value("electronics"))
+                    .andExpect(jsonPath("$.content[0].active").value(true))
+                    .andExpect(jsonPath("$.content[0].lowStock").value(false))
+                    .andExpect(jsonPath("$.content[0].createdAt").exists())
+                    .andExpect(jsonPath("$.content[0].updatedAt").exists())
+                    .andExpect(jsonPath("$.content[0].suppliers").isArray());
+
+            then(supplierService).should().getSupplierProducts(eq(supplierId), any(Pageable.class));
+        }
+
+        @Test
+        @DisplayName("Should handle multiple pages correctly")
+        void shouldHandleMultiplePagesCorrectly() throws Exception {
+            // Given
+            UUID supplierId = UUID.randomUUID();
+            ProductResponse product = createProductResponse("Product 1");
+            Page<ProductResponse> page = new PageImpl<>(List.of(product), PageRequest.of(2, 3), 10);
+
+            given(supplierService.getSupplierProducts(eq(supplierId), any(Pageable.class))).willReturn(page);
+
+            // When & Then
+            mockMvc.perform(get("/api/v1/suppliers/{id}/products", supplierId)
+                            .param("page", "2")
+                            .param("size", "3"))
+                    .andExpect(status().isOk())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.content.length()").value(1))
+                    .andExpect(jsonPath("$.size").value(3))
+                    .andExpect(jsonPath("$.number").value(2))
+                    .andExpect(jsonPath("$.totalElements").value(10))
+                    .andExpect(jsonPath("$.totalPages").value(4))
+                    .andExpect(jsonPath("$.first").value(false))
+                    .andExpect(jsonPath("$.last").value(false));
+
+            then(supplierService).should().getSupplierProducts(eq(supplierId), any(Pageable.class));
+        }
+
+        @Test
+        @DisplayName("Should handle custom sorting parameters")
+        void shouldHandleCustomSortingParameters() throws Exception {
+            // Given
+            UUID supplierId = UUID.randomUUID();
+            ProductResponse product = createProductResponse("Test Product");
+            Page<ProductResponse> page = new PageImpl<>(List.of(product), PageRequest.of(0, 20), 1);
+
+            given(supplierService.getSupplierProducts(eq(supplierId), any(Pageable.class))).willReturn(page);
+
+            // When & Then
+            mockMvc.perform(get("/api/v1/suppliers/{id}/products", supplierId)
+                            .param("sort", "price,desc")
+                            .param("sort", "name,asc"))
+                    .andExpect(status().isOk())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.content.length()").value(1));
+
+            then(supplierService).should().getSupplierProducts(eq(supplierId), any(Pageable.class));
+        }
+
+        @Test
+        @DisplayName("Should handle edge case with zero page size gracefully")
+        void shouldHandleEdgeCaseWithZeroPageSizeGracefully() throws Exception {
+            // Given
+            UUID supplierId = UUID.randomUUID();
+            Page<ProductResponse> emptyPage = new PageImpl<>(List.of(), PageRequest.of(0, 1), 0);
+
+            given(supplierService.getSupplierProducts(eq(supplierId), any(Pageable.class))).willReturn(emptyPage);
+
+            // When & Then - Spring will handle invalid page size and use defaults
+            mockMvc.perform(get("/api/v1/suppliers/{id}/products", supplierId)
+                            .param("size", "0"))
+                    .andExpect(status().isOk());
+
+            then(supplierService).should().getSupplierProducts(eq(supplierId), any(Pageable.class));
+        }
+
+        @Test
+        @DisplayName("Should handle negative page number gracefully")
+        void shouldHandleNegativePageNumberGracefully() throws Exception {
+            // Given
+            UUID supplierId = UUID.randomUUID();
+            ProductResponse product = createProductResponse("Test Product");
+            Page<ProductResponse> page = new PageImpl<>(List.of(product), PageRequest.of(0, 20), 1);
+
+            given(supplierService.getSupplierProducts(eq(supplierId), any(Pageable.class))).willReturn(page);
+
+            // When & Then - Spring will handle negative page and use 0
+            mockMvc.perform(get("/api/v1/suppliers/{id}/products", supplierId)
+                            .param("page", "-1"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.number").value(0));
+
+            then(supplierService).should().getSupplierProducts(eq(supplierId), any(Pageable.class));
+        }
+
+        @Test
+        @DisplayName("Should return first page when no page specified")
+        void shouldReturnFirstPageWhenNoPageSpecified() throws Exception {
+            // Given
+            UUID supplierId = UUID.randomUUID();
+            ProductResponse product = createProductResponse("Test Product");
+            Page<ProductResponse> page = new PageImpl<>(List.of(product), PageRequest.of(0, 20), 1);
+
+            given(supplierService.getSupplierProducts(eq(supplierId), any(Pageable.class))).willReturn(page);
+
+            // When & Then
+            mockMvc.perform(get("/api/v1/suppliers/{id}/products", supplierId))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.number").value(0))
+                    .andExpect(jsonPath("$.first").value(true));
+
+            then(supplierService).should().getSupplierProducts(eq(supplierId), any(Pageable.class));
+        }
+
+        @Test
+        @DisplayName("Should handle supplier with different UUID formats")
+        void shouldHandleSupplierWithDifferentUuidFormats() throws Exception {
+            // Given
+            UUID supplierId = UUID.fromString("123e4567-e89b-12d3-a456-426614174000");
+            ProductResponse product = createProductResponse("Test Product");
+            Page<ProductResponse> page = new PageImpl<>(List.of(product), PageRequest.of(0, 20), 1);
+
+            given(supplierService.getSupplierProducts(eq(supplierId), any(Pageable.class))).willReturn(page);
+
+            // When & Then
+            mockMvc.perform(get("/api/v1/suppliers/{id}/products", "123e4567-e89b-12d3-a456-426614174000"))
+                    .andExpect(status().isOk())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.content.length()").value(1));
+
+            then(supplierService).should().getSupplierProducts(eq(supplierId), any(Pageable.class));
+        }
+
+        @Test
+        @DisplayName("Should verify correct controller method is called")
+        void shouldVerifyCorrectControllerMethodIsCalled() throws Exception {
+            // Given
+            UUID supplierId = UUID.randomUUID();
+            Page<ProductResponse> emptyPage = new PageImpl<>(List.of(), PageRequest.of(0, 20), 0);
+
+            given(supplierService.getSupplierProducts(eq(supplierId), any(Pageable.class))).willReturn(emptyPage);
+
+            // When & Then
+            mockMvc.perform(get("/api/v1/suppliers/{id}/products", supplierId))
+                    .andExpect(status().isOk());
+
+            // Verify the service method was called exactly once with correct parameters
+            then(supplierService).should().getSupplierProducts(eq(supplierId), argThat(pageable -> 
+                pageable.getPageNumber() == 0 && 
+                pageable.getPageSize() == 20 && 
+                pageable.getSort().getOrderFor("name") != null
+            ));
+        }
+
+        private ProductResponse createProductResponse(String name) {
+            return new ProductResponse(
+                    UUID.randomUUID(),
+                    name,
+                    "Description for " + name,
+                    "SKU-" + name.replaceAll(" ", "").toUpperCase(),
+                    BigDecimal.valueOf(100.0),
+                    10,
+                    5,
+                    "electronics",
+                    true,
+                    false,
+                    LocalDateTime.now(),
+                    LocalDateTime.now(),
+                    List.of()
+            );
+        }
+
+        private ProductResponse createCompleteProductResponse() {
+            return new ProductResponse(
+                    UUID.randomUUID(),
+                    "iPhone 15",
+                    "Latest iPhone model",
+                    "IPHONE15",
+                    BigDecimal.valueOf(999.99),
+                    50,
+                    10,
+                    "electronics",
+                    true,
+                    false,
+                    LocalDateTime.now(),
+                    LocalDateTime.now(),
+                    List.of()
             );
         }
     }

@@ -2,6 +2,7 @@ package com.inventory.controller;
 
 import com.inventory.dto.request.CreateSupplierRequest;
 import com.inventory.dto.request.UpdateSupplierRequest;
+import com.inventory.dto.response.ProductResponse;
 import com.inventory.dto.response.SupplierResponse;
 import com.inventory.enums.SupplierStatus;
 import com.inventory.enums.SupplierType;
@@ -78,5 +79,13 @@ public class SupplierController {
         );
 
         return ResponseEntity.ok(suppliers);
+    }
+
+    @GetMapping("/{id}/products")
+    public ResponseEntity<Page<ProductResponse>> getSupplierProducts(
+            @PathVariable UUID id,
+            @PageableDefault(size = 20, sort = "name") Pageable pageable) {
+        Page<ProductResponse> products = supplierService.getSupplierProducts(id, pageable);
+        return ResponseEntity.ok(products);
     }
 }

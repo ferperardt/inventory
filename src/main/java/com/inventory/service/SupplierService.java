@@ -2,12 +2,14 @@ package com.inventory.service;
 
 import com.inventory.dto.request.CreateSupplierRequest;
 import com.inventory.dto.request.UpdateSupplierRequest;
+import com.inventory.dto.response.ProductResponse;
 import com.inventory.dto.response.SupplierResponse;
 import com.inventory.entity.Supplier;
 import com.inventory.enums.SupplierStatus;
 import com.inventory.enums.SupplierType;
 import com.inventory.exception.DuplicateBusinessIdException;
 import com.inventory.exception.SupplierNotFoundException;
+import com.inventory.mapper.ProductMapper;
 import com.inventory.mapper.SupplierMapper;
 import com.inventory.repository.SupplierRepository;
 import com.inventory.specification.SupplierSpecification;
@@ -25,10 +27,12 @@ public class SupplierService {
 
     private final SupplierRepository supplierRepository;
     private final SupplierMapper supplierMapper;
+    private final ProductMapper productMapper;
 
-    public SupplierService(SupplierRepository supplierRepository, SupplierMapper supplierMapper) {
+    public SupplierService(SupplierRepository supplierRepository, SupplierMapper supplierMapper, ProductMapper productMapper) {
         this.supplierRepository = supplierRepository;
         this.supplierMapper = supplierMapper;
+        this.productMapper = productMapper;
     }
 
     @Transactional(readOnly = true)
@@ -75,7 +79,7 @@ public class SupplierService {
 
         if (request.businessId() != null && !request.businessId().trim().isEmpty()) {
             if (supplierRepository.existsByBusinessIdAndActiveTrue(request.businessId()) &&
-                !request.businessId().equals(supplier.getBusinessId())) {
+                    !request.businessId().equals(supplier.getBusinessId())) {
                 throw new DuplicateBusinessIdException(request.businessId());
             }
         }
@@ -136,5 +140,15 @@ public class SupplierService {
 
         return supplierRepository.findAll(spec, pageable)
                 .map(supplierMapper::toResponse);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<ProductResponse> getSupplierProducts(UUID supplierId, Pageable pageable) {
+        supplierRepository.findById(supplierId)
+                .filter(Supplier::getActive)
+                .orElseThrow(() -> new SupplierNotFoundException(supplierId));
+
+        return supplierRepository.findActiveProductsBySupplierId(supplierId, pageable)
+                .map(productMapper::toResponse);
     }
 }

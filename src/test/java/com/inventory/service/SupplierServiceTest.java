@@ -2,13 +2,16 @@ package com.inventory.service;
 
 import com.inventory.dto.request.CreateSupplierRequest;
 import com.inventory.dto.request.UpdateSupplierRequest;
+import com.inventory.dto.response.ProductResponse;
 import com.inventory.dto.response.SupplierResponse;
 import com.inventory.entity.Address;
+import com.inventory.entity.Product;
 import com.inventory.entity.Supplier;
 import com.inventory.enums.SupplierStatus;
 import com.inventory.enums.SupplierType;
 import com.inventory.exception.DuplicateBusinessIdException;
 import com.inventory.exception.SupplierNotFoundException;
+import com.inventory.mapper.ProductMapper;
 import com.inventory.mapper.SupplierMapper;
 import com.inventory.repository.SupplierRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -49,11 +52,14 @@ class SupplierServiceTest {
     @Mock
     private SupplierMapper supplierMapper;
 
+    @Mock
+    private ProductMapper productMapper;
+
     private SupplierService supplierService;
 
     @BeforeEach
     void setUp() {
-        supplierService = new SupplierService(supplierRepository, supplierMapper);
+        supplierService = new SupplierService(supplierRepository, supplierMapper, productMapper);
     }
 
     @Nested
@@ -466,7 +472,7 @@ class SupplierServiceTest {
             // When
             Page<SupplierResponse> result = supplierService.searchSuppliers(
                     "ABC Electronics", "contact@abc.com", "Tech City", "USA",
-                    SupplierStatus.ACTIVE, SupplierType.DOMESTIC, 
+                    SupplierStatus.ACTIVE, SupplierType.DOMESTIC,
                     BigDecimal.valueOf(4.0), BigDecimal.valueOf(5.0), 5, 10, pageable
             );
 
@@ -632,7 +638,7 @@ class SupplierServiceTest {
 
             // When
             Page<SupplierResponse> result = supplierService.searchSuppliers(
-                    null, null, null, null, null, null, 
+                    null, null, null, null, null, null,
                     BigDecimal.valueOf(4.0), BigDecimal.valueOf(5.0), null, null, pageable
             );
 
@@ -656,7 +662,7 @@ class SupplierServiceTest {
 
             // When
             Page<SupplierResponse> result = supplierService.searchSuppliers(
-                    null, null, null, null, null, null, 
+                    null, null, null, null, null, null,
                     BigDecimal.valueOf(4.0), null, null, null, pageable
             );
 
@@ -680,7 +686,7 @@ class SupplierServiceTest {
 
             // When
             Page<SupplierResponse> result = supplierService.searchSuppliers(
-                    null, null, null, null, null, null, 
+                    null, null, null, null, null, null,
                     null, BigDecimal.valueOf(5.0), null, null, pageable
             );
 
@@ -1045,7 +1051,7 @@ class SupplierServiceTest {
             Supplier existingSupplier = createSupplier();
             existingSupplier.setId(supplierId);
             existingSupplier.setBusinessId("OLD-BUS-ID");
-            
+
             UpdateSupplierRequest request = createCompleteUpdateRequest();
             Supplier updatedSupplier = createSupplier();
             updatedSupplier.setId(supplierId);
@@ -1079,7 +1085,7 @@ class SupplierServiceTest {
             Supplier existingSupplier = createSupplier();
             existingSupplier.setId(supplierId);
             existingSupplier.setBusinessId(businessId);
-            
+
             UpdateSupplierRequest request = createUpdateRequestWithBusinessId(businessId);
             Supplier updatedSupplier = createSupplier();
             updatedSupplier.setId(supplierId);
@@ -1109,7 +1115,7 @@ class SupplierServiceTest {
             UUID supplierId = UUID.randomUUID();
             Supplier existingSupplier = createSupplier();
             existingSupplier.setId(supplierId);
-            
+
             UpdateSupplierRequest request = createUpdateRequestWithNullBusinessId();
             Supplier updatedSupplier = createSupplier();
             updatedSupplier.setId(supplierId);
@@ -1138,7 +1144,7 @@ class SupplierServiceTest {
             UUID supplierId = UUID.randomUUID();
             Supplier existingSupplier = createSupplier();
             existingSupplier.setId(supplierId);
-            
+
             UpdateSupplierRequest request = createUpdateRequestWithEmptyBusinessId();
             Supplier updatedSupplier = createSupplier();
             updatedSupplier.setId(supplierId);
@@ -1167,7 +1173,7 @@ class SupplierServiceTest {
             UUID supplierId = UUID.randomUUID();
             Supplier existingSupplier = createSupplier();
             existingSupplier.setId(supplierId);
-            
+
             UpdateSupplierRequest request = createUpdateRequestWithWhitespaceBusinessId();
             Supplier updatedSupplier = createSupplier();
             updatedSupplier.setId(supplierId);
@@ -1241,11 +1247,11 @@ class SupplierServiceTest {
             UUID supplierId = UUID.randomUUID();
             String existingBusinessId = "EXISTING-BUS-ID";
             String newBusinessId = "NEW-BUS-ID";
-            
+
             Supplier existingSupplier = createSupplier();
             existingSupplier.setId(supplierId);
             existingSupplier.setBusinessId(existingBusinessId);
-            
+
             UpdateSupplierRequest request = createUpdateRequestWithBusinessId(newBusinessId);
 
             given(supplierRepository.findById(supplierId)).willReturn(Optional.of(existingSupplier));
@@ -1271,7 +1277,7 @@ class SupplierServiceTest {
             Supplier existingSupplier = createSupplier("Original Supplier");
             existingSupplier.setId(supplierId);
             existingSupplier.setBusinessId("ORIG-BUS-ID");
-            
+
             UpdateSupplierRequest request = createCompleteUpdateRequest();
             Supplier updatedSupplier = createSupplier("Updated Supplier");
             updatedSupplier.setId(supplierId);
@@ -1404,6 +1410,443 @@ class SupplierServiceTest {
                     "test@supplier.com",
                     "+1-555-0123",
                     null, null, null, null, null, null, null
+            );
+        }
+    }
+
+    @Nested
+    @DisplayName("getSupplierProducts() Tests")
+    class GetSupplierProductsTests {
+
+        @Test
+        @DisplayName("Should return paginated products for valid supplier ID")
+        void shouldReturnPaginatedProductsForValidSupplierId() {
+            // Given
+            UUID supplierId = UUID.randomUUID();
+            Pageable pageable = PageRequest.of(0, 20);
+
+            Product activeProduct1 = createProduct("Product 1");
+            Product activeProduct2 = createProduct("Product 2");
+            Page<Product> productsPage = new PageImpl<>(List.of(activeProduct1, activeProduct2), pageable, 2);
+
+            ProductResponse response1 = createProductResponse("Product 1");
+            ProductResponse response2 = createProductResponse("Product 2");
+
+            Supplier supplier = createSupplier();
+            supplier.setId(supplierId);
+            given(supplierRepository.findById(supplierId)).willReturn(Optional.of(supplier));
+            given(supplierRepository.findActiveProductsBySupplierId(supplierId, pageable)).willReturn(productsPage);
+            given(productMapper.toResponse(activeProduct1)).willReturn(response1);
+            given(productMapper.toResponse(activeProduct2)).willReturn(response2);
+
+            // When
+            Page<ProductResponse> result = supplierService.getSupplierProducts(supplierId, pageable);
+
+            // Then
+            assertThat(result.getContent()).hasSize(2);
+            assertThat(result.getContent()).containsExactly(response1, response2);
+            assertThat(result.getTotalElements()).isEqualTo(2);
+            assertThat(result.getTotalPages()).isEqualTo(1);
+            assertThat(result.getSize()).isEqualTo(20);
+            assertThat(result.getNumber()).isEqualTo(0);
+            then(supplierRepository).should().findActiveProductsBySupplierId(supplierId, pageable);
+            then(productMapper).should().toResponse(activeProduct1);
+            then(productMapper).should().toResponse(activeProduct2);
+        }
+
+        @Test
+        @DisplayName("Should only return active products")
+        void shouldOnlyReturnActiveProducts() {
+            // Given
+            UUID supplierId = UUID.randomUUID();
+            Pageable pageable = PageRequest.of(0, 20);
+
+            Product activeProduct = createProduct("Active Product");
+            // Repository query handles filtering - only active products are returned
+            Page<Product> productsPage = new PageImpl<>(List.of(activeProduct), pageable, 1);
+
+            ProductResponse activeResponse = createProductResponse("Active Product");
+
+            Supplier supplier = createSupplier();
+            supplier.setId(supplierId);
+            given(supplierRepository.findById(supplierId)).willReturn(Optional.of(supplier));
+            given(supplierRepository.findActiveProductsBySupplierId(supplierId, pageable)).willReturn(productsPage);
+            given(productMapper.toResponse(activeProduct)).willReturn(activeResponse);
+
+            // When
+            Page<ProductResponse> result = supplierService.getSupplierProducts(supplierId, pageable);
+
+            // Then
+            assertThat(result.getContent()).hasSize(1);
+            assertThat(result.getContent()).containsExactly(activeResponse);
+            assertThat(result.getTotalElements()).isEqualTo(1);
+            then(supplierRepository).should().findActiveProductsBySupplierId(supplierId, pageable);
+            then(productMapper).should().toResponse(activeProduct);
+        }
+
+        @Test
+        @DisplayName("Should handle empty product list")
+        void shouldHandleEmptyProductList() {
+            // Given
+            UUID supplierId = UUID.randomUUID();
+            Pageable pageable = PageRequest.of(0, 20);
+
+            Page<Product> emptyPage = Page.empty(pageable);
+
+            Supplier supplier = createSupplier();
+            supplier.setId(supplierId);
+            given(supplierRepository.findById(supplierId)).willReturn(Optional.of(supplier));
+            given(supplierRepository.findActiveProductsBySupplierId(supplierId, pageable)).willReturn(emptyPage);
+
+            // When
+            Page<ProductResponse> result = supplierService.getSupplierProducts(supplierId, pageable);
+
+            // Then
+            assertThat(result.getContent()).isEmpty();
+            assertThat(result.getTotalElements()).isEqualTo(0);
+            assertThat(result.getTotalPages()).isEqualTo(0);
+            assertThat(result.getSize()).isEqualTo(20);
+            assertThat(result.getNumber()).isEqualTo(0);
+            then(supplierRepository).should().findActiveProductsBySupplierId(supplierId, pageable);
+        }
+
+        @Test
+        @DisplayName("Should handle supplier with only inactive products")
+        void shouldHandleSupplierWithOnlyInactiveProducts() {
+            // Given
+            UUID supplierId = UUID.randomUUID();
+            Pageable pageable = PageRequest.of(0, 20);
+
+            // Repository query filters out inactive products - returns empty page
+            Page<Product> emptyPage = Page.empty(pageable);
+
+            Supplier supplier = createSupplier();
+            supplier.setId(supplierId);
+            given(supplierRepository.findById(supplierId)).willReturn(Optional.of(supplier));
+            given(supplierRepository.findActiveProductsBySupplierId(supplierId, pageable)).willReturn(emptyPage);
+
+            // When
+            Page<ProductResponse> result = supplierService.getSupplierProducts(supplierId, pageable);
+
+            // Then
+            assertThat(result.getContent()).isEmpty();
+            assertThat(result.getTotalElements()).isEqualTo(0);
+            assertThat(result.getTotalPages()).isEqualTo(0);
+            then(supplierRepository).should().findActiveProductsBySupplierId(supplierId, pageable);
+            then(productMapper).should(never()).toResponse(any());
+        }
+
+        @Test
+        @DisplayName("Should handle pagination correctly")
+        void shouldHandlePaginationCorrectly() {
+            // Given
+            UUID supplierId = UUID.randomUUID();
+            Pageable pageable = PageRequest.of(1, 2); // Page 1, size 2
+
+            Product product3 = createProduct("Product 3");
+            Product product4 = createProduct("Product 4");
+            // Simulate second page with 2 products out of 4 total
+            Page<Product> productsPage = new PageImpl<>(List.of(product3, product4), pageable, 4);
+
+            ProductResponse response = createProductResponse("Test Product");
+
+            Supplier supplier = createSupplier();
+            supplier.setId(supplierId);
+            given(supplierRepository.findById(supplierId)).willReturn(Optional.of(supplier));
+            given(supplierRepository.findActiveProductsBySupplierId(supplierId, pageable)).willReturn(productsPage);
+            given(productMapper.toResponse(any(Product.class))).willReturn(response);
+
+            // When
+            Page<ProductResponse> result = supplierService.getSupplierProducts(supplierId, pageable);
+
+            // Then
+            assertThat(result.getContent()).hasSize(2);
+            assertThat(result.getTotalElements()).isEqualTo(4);
+            assertThat(result.getTotalPages()).isEqualTo(2);
+            assertThat(result.getSize()).isEqualTo(2);
+            assertThat(result.getNumber()).isEqualTo(1);
+            assertThat(result.isFirst()).isFalse();
+            assertThat(result.isLast()).isTrue();
+            then(supplierRepository).should().findActiveProductsBySupplierId(supplierId, pageable);
+        }
+
+        @Test
+        @DisplayName("Should handle page size larger than total products")
+        void shouldHandlePageSizeLargerThanTotalProducts() {
+            // Given
+            UUID supplierId = UUID.randomUUID();
+            Pageable pageable = PageRequest.of(0, 50); // Large page size
+
+            Product product1 = createProduct("Product 1");
+            Product product2 = createProduct("Product 2");
+            Page<Product> productsPage = new PageImpl<>(List.of(product1, product2), pageable, 2);
+
+            ProductResponse response1 = createProductResponse("Product 1");
+            ProductResponse response2 = createProductResponse("Product 2");
+
+            Supplier supplier = createSupplier();
+            supplier.setId(supplierId);
+            given(supplierRepository.findById(supplierId)).willReturn(Optional.of(supplier));
+            given(supplierRepository.findActiveProductsBySupplierId(supplierId, pageable)).willReturn(productsPage);
+            given(productMapper.toResponse(product1)).willReturn(response1);
+            given(productMapper.toResponse(product2)).willReturn(response2);
+
+            // When
+            Page<ProductResponse> result = supplierService.getSupplierProducts(supplierId, pageable);
+
+            // Then
+            assertThat(result.getContent()).hasSize(2);
+            assertThat(result.getContent()).containsExactly(response1, response2);
+            assertThat(result.getTotalElements()).isEqualTo(2);
+            assertThat(result.getTotalPages()).isEqualTo(1);
+            assertThat(result.getSize()).isEqualTo(50);
+            assertThat(result.getNumber()).isEqualTo(0);
+            then(supplierRepository).should().findActiveProductsBySupplierId(supplierId, pageable);
+        }
+
+        @Test
+        @DisplayName("Should handle page number beyond available pages")
+        void shouldHandlePageNumberBeyondAvailablePages() {
+            // Given
+            UUID supplierId = UUID.randomUUID();
+            Pageable pageable = PageRequest.of(2, 10); // Page 2 when only 1 product exists (only 1 page available)
+
+            // Repository returns empty content for page beyond available data but correct total
+            Page<Product> productsPage = new PageImpl<>(List.of(), pageable, 1);
+
+            Supplier supplier = createSupplier();
+            supplier.setId(supplierId);
+            given(supplierRepository.findById(supplierId)).willReturn(Optional.of(supplier));
+            given(supplierRepository.findActiveProductsBySupplierId(supplierId, pageable)).willReturn(productsPage);
+
+            // When
+            Page<ProductResponse> result = supplierService.getSupplierProducts(supplierId, pageable);
+
+            // Then - When requesting page beyond available data, should return empty content but correct metadata
+            assertThat(result.getContent()).isEmpty();
+            assertThat(result.getTotalElements()).isEqualTo(1);
+            assertThat(result.getTotalPages()).isEqualTo(1);
+            assertThat(result.getSize()).isEqualTo(10);
+            assertThat(result.getNumber()).isEqualTo(2);
+            assertThat(result.isFirst()).isFalse();
+            assertThat(result.isLast()).isTrue();
+            then(supplierRepository).should().findActiveProductsBySupplierId(supplierId, pageable);
+        }
+
+        @Test
+        @DisplayName("Should handle first and last pages correctly")
+        void shouldHandleFirstAndLastPagesCorrectly() {
+            // Given
+            UUID supplierId = UUID.randomUUID();
+
+            List<Product> firstPageProducts = List.of(
+                    createProduct("Product 1"),
+                    createProduct("Product 2")
+            );
+            List<Product> lastPageProducts = List.of(
+                    createProduct("Product 3")
+            );
+
+            Supplier supplier = createSupplier();
+            supplier.setId(supplierId);
+            given(supplierRepository.findById(supplierId)).willReturn(Optional.of(supplier));
+            given(productMapper.toResponse(any())).willReturn(createProductResponse("Test Product"));
+
+            // When - First page
+            Pageable firstPage = PageRequest.of(0, 2);
+            Page<Product> firstPageResult = new PageImpl<>(firstPageProducts, firstPage, 3);
+            given(supplierRepository.findActiveProductsBySupplierId(supplierId, firstPage)).willReturn(firstPageResult);
+            Page<ProductResponse> firstResult = supplierService.getSupplierProducts(supplierId, firstPage);
+
+            // Then - First page
+            assertThat(firstResult.isFirst()).isTrue();
+            assertThat(firstResult.isLast()).isFalse();
+            assertThat(firstResult.hasNext()).isTrue();
+            assertThat(firstResult.hasPrevious()).isFalse();
+
+            // When - Last page
+            Pageable lastPage = PageRequest.of(1, 2);
+            Page<Product> lastPageResult = new PageImpl<>(lastPageProducts, lastPage, 3);
+            given(supplierRepository.findActiveProductsBySupplierId(supplierId, lastPage)).willReturn(lastPageResult);
+            Page<ProductResponse> lastResult = supplierService.getSupplierProducts(supplierId, lastPage);
+
+            // Then - Last page
+            assertThat(lastResult.isFirst()).isFalse();
+            assertThat(lastResult.isLast()).isTrue();
+            assertThat(lastResult.hasNext()).isFalse();
+            assertThat(lastResult.hasPrevious()).isTrue();
+        }
+
+        @Test
+        @DisplayName("Should throw SupplierNotFoundException for invalid supplier ID")
+        void shouldThrowSupplierNotFoundExceptionForInvalidSupplierId() {
+            // Given
+            UUID invalidSupplierId = UUID.randomUUID();
+            Pageable pageable = PageRequest.of(0, 20);
+
+            given(supplierRepository.findById(invalidSupplierId)).willReturn(Optional.empty());
+
+            // When & Then
+            assertThatThrownBy(() -> supplierService.getSupplierProducts(invalidSupplierId, pageable))
+                    .isInstanceOf(SupplierNotFoundException.class)
+                    .hasMessageContaining(invalidSupplierId.toString());
+
+            then(supplierRepository).should().findById(invalidSupplierId);
+            then(supplierRepository).should(never()).findActiveProductsBySupplierId(any(), any());
+            then(productMapper).should(never()).toResponse(any());
+        }
+
+        @Test
+        @DisplayName("Should throw SupplierNotFoundException for inactive supplier")
+        void shouldThrowSupplierNotFoundExceptionForInactiveSupplier() {
+            // Given
+            UUID supplierId = UUID.randomUUID();
+            Pageable pageable = PageRequest.of(0, 20);
+
+            Supplier inactiveSupplier = createSupplier();
+            inactiveSupplier.setId(supplierId);
+            inactiveSupplier.softDelete(); // This sets active to false
+            given(supplierRepository.findById(supplierId)).willReturn(Optional.of(inactiveSupplier));
+
+            // When & Then
+            assertThatThrownBy(() -> supplierService.getSupplierProducts(supplierId, pageable))
+                    .isInstanceOf(SupplierNotFoundException.class)
+                    .hasMessageContaining(supplierId.toString());
+
+            then(supplierRepository).should().findById(supplierId);
+            then(supplierRepository).should(never()).findActiveProductsBySupplierId(any(), any());
+            then(productMapper).should(never()).toResponse(any());
+        }
+
+        @Test
+        @DisplayName("Should handle large datasets with correct pagination")
+        void shouldHandleLargeDatasetsWithCorrectPagination() {
+            // Given
+            UUID supplierId = UUID.randomUUID();
+            Pageable pageable = PageRequest.of(2, 3); // Page 2, size 3
+
+            // Create 2 products for the last page (page 2 of 8 total products)
+            List<Product> pageProducts = List.of(
+                    createProduct("Product 7"),
+                    createProduct("Product 8")
+            );
+            Page<Product> productsPage = new PageImpl<>(pageProducts, pageable, 8);
+
+            ProductResponse response = createProductResponse("Test Product");
+
+            Supplier supplier = createSupplier();
+            supplier.setId(supplierId);
+            given(supplierRepository.findById(supplierId)).willReturn(Optional.of(supplier));
+            given(supplierRepository.findActiveProductsBySupplierId(supplierId, pageable)).willReturn(productsPage);
+            given(productMapper.toResponse(any(Product.class))).willReturn(response);
+
+            // When
+            Page<ProductResponse> result = supplierService.getSupplierProducts(supplierId, pageable);
+
+            // Then
+            assertThat(result.getContent()).hasSize(2); // Last 2 products on this page
+            assertThat(result.getTotalElements()).isEqualTo(8);
+            assertThat(result.getTotalPages()).isEqualTo(3); // 8 items / 3 per page = 3 pages
+            assertThat(result.getSize()).isEqualTo(3);
+            assertThat(result.getNumber()).isEqualTo(2);
+            assertThat(result.isFirst()).isFalse();
+            assertThat(result.isLast()).isTrue();
+            then(supplierRepository).should().findActiveProductsBySupplierId(supplierId, pageable);
+        }
+
+        @Test
+        @DisplayName("Should handle mixed active and inactive products correctly")
+        void shouldHandleMixedActiveAndInactiveProductsCorrectly() {
+            // Given
+            UUID supplierId = UUID.randomUUID();
+            Pageable pageable = PageRequest.of(0, 20);
+
+            Product activeProduct1 = createProduct("Active Product 1");
+            Product activeProduct2 = createProduct("Active Product 2");
+            // Repository query filters out inactive products - only active products returned
+            Page<Product> productsPage = new PageImpl<>(List.of(activeProduct1, activeProduct2), pageable, 2);
+
+            ProductResponse response1 = createProductResponse("Active Product 1");
+            ProductResponse response2 = createProductResponse("Active Product 2");
+
+            Supplier supplier = createSupplier();
+            supplier.setId(supplierId);
+            given(supplierRepository.findById(supplierId)).willReturn(Optional.of(supplier));
+            given(supplierRepository.findActiveProductsBySupplierId(supplierId, pageable)).willReturn(productsPage);
+            given(productMapper.toResponse(activeProduct1)).willReturn(response1);
+            given(productMapper.toResponse(activeProduct2)).willReturn(response2);
+
+            // When
+            Page<ProductResponse> result = supplierService.getSupplierProducts(supplierId, pageable);
+
+            // Then
+            assertThat(result.getContent()).hasSize(2);
+            assertThat(result.getContent()).containsExactly(response1, response2);
+            assertThat(result.getTotalElements()).isEqualTo(2);
+            then(supplierRepository).should().findActiveProductsBySupplierId(supplierId, pageable);
+            then(productMapper).should().toResponse(activeProduct1);
+            then(productMapper).should().toResponse(activeProduct2);
+        }
+
+        @Test
+        @DisplayName("Should verify PageImpl is created with correct parameters")
+        void shouldVerifyPageImplIsCreatedWithCorrectParameters() {
+            // Given
+            UUID supplierId = UUID.randomUUID();
+            Pageable pageable = PageRequest.of(1, 3);
+
+            List<Product> pageProducts = List.of(
+                    createProduct("Product 4"),
+                    createProduct("Product 5")
+            );
+            Page<Product> productsPage = new PageImpl<>(pageProducts, pageable, 5);
+
+            Supplier supplier = createSupplier();
+            supplier.setId(supplierId);
+            given(supplierRepository.findById(supplierId)).willReturn(Optional.of(supplier));
+            given(supplierRepository.findActiveProductsBySupplierId(supplierId, pageable)).willReturn(productsPage);
+            given(productMapper.toResponse(any())).willReturn(createProductResponse("Test Product"));
+
+            // When
+            Page<ProductResponse> result = supplierService.getSupplierProducts(supplierId, pageable);
+
+            // Then - Verify PageImpl metadata
+            assertThat(result.getContent()).hasSize(2); // Products 4 and 5
+            assertThat(result.getTotalElements()).isEqualTo(5);
+            assertThat(result.getTotalPages()).isEqualTo(2);
+            assertThat(result.getSize()).isEqualTo(3);
+            assertThat(result.getNumber()).isEqualTo(1);
+            assertThat(result.getNumberOfElements()).isEqualTo(2);
+            assertThat(result.getSort()).isEqualTo(pageable.getSort());
+        }
+
+        private Product createProduct(String name) {
+            Product product = new Product();
+            product.setId(UUID.randomUUID());
+            product.setName(name);
+            product.setSku("SKU-" + name.replaceAll(" ", "").toUpperCase());
+            product.setPrice(BigDecimal.valueOf(100.0));
+            product.setStockQuantity(10);
+            product.setMinStockLevel(5);
+            product.setCategory("electronics");
+            return product;
+        }
+
+        private ProductResponse createProductResponse(String name) {
+            return new ProductResponse(
+                    UUID.randomUUID(),
+                    name,
+                    "Description for " + name,
+                    "SKU-" + name.replaceAll(" ", "").toUpperCase(),
+                    BigDecimal.valueOf(100.0),
+                    10,
+                    5,
+                    "electronics",
+                    true,
+                    false,
+                    LocalDateTime.now(),
+                    LocalDateTime.now(),
+                    List.of()
             );
         }
     }
