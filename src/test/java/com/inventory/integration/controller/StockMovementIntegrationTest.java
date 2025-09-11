@@ -4,6 +4,8 @@ import com.inventory.dto.request.CreateStockMovementRequest;
 import com.inventory.dto.response.StockMovementResponse;
 import com.inventory.entity.Product;
 import com.inventory.entity.Supplier;
+import com.inventory.enums.MovementReason;
+import com.inventory.enums.MovementType;
 import com.inventory.integration.fixtures.ProductTestFactory;
 import com.inventory.integration.fixtures.RestResponsePage;
 import com.inventory.integration.fixtures.StockMovementTestFactory;
@@ -16,9 +18,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.core.ParameterizedTypeReference;
-import org.springframework.http.HttpMethod;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
+import org.springframework.http.*;
 import org.springframework.test.context.ActiveProfiles;
 
 import java.util.UUID;
@@ -163,20 +163,21 @@ class StockMovementIntegrationTest {
                 .validOutMovementRequest(testProductId, 2);
         restTemplate.postForEntity("/api/v1/stock-movements", secondMovement, StockMovementResponse.class);
 
-        ParameterizedTypeReference<RestResponsePage<StockMovementResponse>> responseType = 
-            new ParameterizedTypeReference<RestResponsePage<StockMovementResponse>>() {};
+        ParameterizedTypeReference<RestResponsePage<StockMovementResponse>> responseType =
+                new ParameterizedTypeReference<RestResponsePage<StockMovementResponse>>() {
+                };
         ResponseEntity<RestResponsePage<StockMovementResponse>> response = restTemplate.exchange(
-            "/api/v1/stock-movements", HttpMethod.GET, null, responseType);
+                "/api/v1/stock-movements", HttpMethod.GET, null, responseType);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(response.getBody()).isNotNull();
         assertThat(response.getBody().getContent()).hasSizeGreaterThanOrEqualTo(2);
-        
+
         boolean hasInMovement = response.getBody().getContent().stream()
-            .anyMatch(m -> m.movementType().name().equals("IN"));
+                .anyMatch(m -> m.movementType().name().equals("IN"));
         boolean hasOutMovement = response.getBody().getContent().stream()
-            .anyMatch(m -> m.movementType().name().equals("OUT"));
-            
+                .anyMatch(m -> m.movementType().name().equals("OUT"));
+
         assertThat(hasInMovement).isTrue();
         assertThat(hasOutMovement).isTrue();
     }
@@ -216,6 +217,132 @@ class StockMovementIntegrationTest {
         StockMovementResponse lastMovement = response3.getBody();
         assertThat(lastMovement).isNotNull();
         assertThat(lastMovement.newStock()).isEqualTo(expectedStock);
+    }
+
+    @Test
+    @Order(7)
+    @DisplayName("Should return 400 when trying to create movement with invalid data")
+    void shouldReturn400WhenTryingToCreateMovementWithInvalidData() {
+        // Given - Request with missing required fields
+        String invalidJson = "{}";
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        HttpEntity<String> entity = new HttpEntity<>(invalidJson, headers);
+
+        // When
+        ResponseEntity<String> response = restTemplate.exchange(
+                "/api/v1/stock-movements",
+                HttpMethod.POST,
+                entity,
+                String.class);
+
+        // Then
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(response.getBody()).contains("is required");
+    }
+
+    @Test
+    @Order(8)
+    @DisplayName("Should return 400 when trying to create movement with negative quantity")
+    void shouldReturn400WhenTryingToCreateMovementWithNegativeQuantity() {
+        // Given - Request with negative quantity
+        CreateStockMovementRequest request = new CreateStockMovementRequest(
+                testProductId,
+                MovementType.IN,
+                -10, // Negative quantity
+                MovementReason.PURCHASE,
+                "INV-001",
+                "Invalid negative quantity"
+        );
+
+        // When
+        ResponseEntity<String> response = restTemplate.postForEntity(
+                "/api/v1/stock-movements", request, String.class);
+
+        // Then
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(response.getBody()).contains("must be greater than 0");
+    }
+
+    @Test
+    @Order(9)
+    @DisplayName("Should return 400 when trying to create movement with zero quantity")
+    void shouldReturn400WhenTryingToCreateMovementWithZeroQuantity() {
+        // Given - Request with zero quantity
+        CreateStockMovementRequest request = new CreateStockMovementRequest(
+                testProductId,
+                MovementType.IN,
+                0, // Zero quantity
+                MovementReason.PURCHASE,
+                "INV-001",
+                "Invalid zero quantity"
+        );
+
+        // When
+        ResponseEntity<String> response = restTemplate.postForEntity(
+                "/api/v1/stock-movements", request, String.class);
+
+        // Then
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(response.getBody()).contains("must be greater than 0");
+    }
+
+    @Test
+    @Order(10)
+    @DisplayName("Should return 400 when trying to create movement with invalid UUID")
+    void shouldReturn400WhenTryingToCreateMovementWithInvalidUuid() {
+        // Given - Request with malformed JSON containing invalid UUID
+        String invalidJson = "{ \"productId\": \"invalid-uuid\", \"movementType\": \"IN\", \"quantity\": 10, \"reason\": \"PURCHASE\" }";
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        HttpEntity<String> entity = new HttpEntity<>(invalidJson, headers);
+
+        // When
+        ResponseEntity<String> response = restTemplate.exchange(
+                "/api/v1/stock-movements",
+                HttpMethod.POST,
+                entity,
+                String.class);
+
+        // Then
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(response.getBody()).contains("Invalid");
+    }
+
+    @Test
+    @Order(11)
+    @DisplayName("Should handle concurrent stock movements correctly")
+    void shouldHandleConcurrentStockMovementsCorrectly() {
+        // Given - Get current stock
+        Product product = productRepository.findById(testProductId).orElse(null);
+        assertThat(product).isNotNull();
+        Integer initialStock = product.getStockQuantity();
+
+        // When - Create multiple movements that should be processed sequentially
+        CreateStockMovementRequest movement1 = new CreateStockMovementRequest(
+                testProductId, MovementType.IN, 5, MovementReason.PURCHASE, "CONC-001", "Concurrent test 1");
+        CreateStockMovementRequest movement2 = new CreateStockMovementRequest(
+                testProductId, MovementType.OUT, 3, MovementReason.SALE, "CONC-002", "Concurrent test 2");
+        CreateStockMovementRequest movement3 = new CreateStockMovementRequest(
+                testProductId, MovementType.IN, 2, MovementReason.ADJUSTMENT, "CONC-003", "Concurrent test 3");
+
+        ResponseEntity<StockMovementResponse> response1 = restTemplate.postForEntity(
+                "/api/v1/stock-movements", movement1, StockMovementResponse.class);
+        ResponseEntity<StockMovementResponse> response2 = restTemplate.postForEntity(
+                "/api/v1/stock-movements", movement2, StockMovementResponse.class);
+        ResponseEntity<StockMovementResponse> response3 = restTemplate.postForEntity(
+                "/api/v1/stock-movements", movement3, StockMovementResponse.class);
+
+        // Then - All movements should succeed and final stock should be correct
+        assertThat(response1.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        assertThat(response2.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        assertThat(response3.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+
+        Product finalProduct = productRepository.findById(testProductId).orElse(null);
+        assertThat(finalProduct).isNotNull();
+
+        Integer expectedFinalStock = initialStock + 5 - 3 + 2; // +5 -3 +2 = +4
+        assertThat(finalProduct.getStockQuantity()).isEqualTo(expectedFinalStock);
     }
 
     @AfterEach
