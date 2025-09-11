@@ -42,6 +42,16 @@ server:
     include-stacktrace: never
     include-message: always
 
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    operationsSorter: method
+    tagsSorter: alpha
+    try-it-out-enabled: true
+  show-actuator: true
+
 ---
 # Perfil DEV
 spring:
