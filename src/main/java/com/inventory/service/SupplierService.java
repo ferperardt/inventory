@@ -104,7 +104,7 @@ public class SupplierService {
             Integer maxDeliveryDays,
             Pageable pageable) {
 
-        Specification<Supplier> spec = Specification.where(SupplierSpecification.isActive());
+        Specification<Supplier> spec = SupplierSpecification.isActive();
 
         if (name != null && !name.trim().isEmpty()) {
             spec = spec.and(SupplierSpecification.hasName(name));

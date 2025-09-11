@@ -155,7 +155,7 @@ public class ProductService {
             Boolean lowStock,
             Pageable pageable) {
 
-        Specification<Product> spec = Specification.where(ProductSpecification.isActive());
+        Specification<Product> spec = ProductSpecification.isActive();
 
         if (name != null && !name.trim().isEmpty()) {
             spec = spec.and(ProductSpecification.hasName(name));
