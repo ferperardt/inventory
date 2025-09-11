@@ -9,8 +9,8 @@ import com.inventory.entity.Address;
 import com.inventory.enums.SupplierStatus;
 import com.inventory.enums.SupplierType;
 import com.inventory.exception.DuplicateBusinessIdException;
-import com.inventory.exception.SupplierNotFoundException;
 import com.inventory.exception.GlobalExceptionHandler;
+import com.inventory.exception.SupplierNotFoundException;
 import com.inventory.service.SupplierService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -729,9 +729,9 @@ class SupplierControllerTest {
             Page<SupplierResponse> page = new PageImpl<>(List.of(supplier), PageRequest.of(0, 20), 1);
 
             given(supplierService.searchSuppliers(
-                    eq("ABC Electronics"), eq("contact@abcelectronics.com"), eq("Tech City"), 
-                    eq("USA"), eq(SupplierStatus.ACTIVE), eq(SupplierType.DOMESTIC), 
-                    eq(BigDecimal.valueOf(4.0)), eq(BigDecimal.valueOf(5.0)), 
+                    eq("ABC Electronics"), eq("contact@abcelectronics.com"), eq("Tech City"),
+                    eq("USA"), eq(SupplierStatus.ACTIVE), eq(SupplierType.DOMESTIC),
+                    eq(BigDecimal.valueOf(4.0)), eq(BigDecimal.valueOf(5.0)),
                     eq(5), eq(10), any(Pageable.class)
             )).willReturn(page);
 
@@ -1104,7 +1104,7 @@ class SupplierControllerTest {
             // Given
             UUID supplierId = UUID.randomUUID();
             UpdateSupplierRequest request = new UpdateSupplierRequest(
-                    "Basic Supplier", null, null, "basic@supplier.com", "+1-555-1234",
+                    "Basic Supplier", null, SupplierStatus.ACTIVE, "basic@supplier.com", "+1-555-1234",
                     null, null, null, null, null, null, null
             );
             SupplierResponse response = new SupplierResponse(
@@ -1814,10 +1814,10 @@ class SupplierControllerTest {
                     .andExpect(status().isOk());
 
             // Verify the service method was called exactly once with correct parameters
-            then(supplierService).should().getSupplierProducts(eq(supplierId), argThat(pageable -> 
-                pageable.getPageNumber() == 0 && 
-                pageable.getPageSize() == 20 && 
-                pageable.getSort().getOrderFor("name") != null
+            then(supplierService).should().getSupplierProducts(eq(supplierId), argThat(pageable ->
+                    pageable.getPageNumber() == 0 &&
+                            pageable.getPageSize() == 20 &&
+                            pageable.getSort().getOrderFor("createdAt") != null
             ));
         }
 
