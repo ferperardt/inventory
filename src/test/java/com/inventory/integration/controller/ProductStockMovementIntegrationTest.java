@@ -6,6 +6,7 @@ import com.inventory.dto.response.StockMovementResponse;
 import com.inventory.entity.Product;
 import com.inventory.entity.Supplier;
 import com.inventory.integration.fixtures.ProductTestFactory;
+import com.inventory.integration.fixtures.RestResponsePage;
 import com.inventory.integration.fixtures.StockMovementTestFactory;
 import com.inventory.integration.fixtures.SupplierTestFactory;
 import com.inventory.repository.ProductRepository;
@@ -15,6 +16,8 @@ import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.client.TestRestTemplate;
+import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.test.context.ActiveProfiles;
@@ -71,15 +74,21 @@ class ProductStockMovementIntegrationTest {
     void shouldGetProductStockMovementsAfterCreatingInitialStock() {
         String url = "/api/v1/products/" + testProductId + "/stock-movements";
 
-        ResponseEntity<String> response = restTemplate.getForEntity(url, String.class);
+        ParameterizedTypeReference<RestResponsePage<StockMovementResponse>> responseType = 
+            new ParameterizedTypeReference<RestResponsePage<StockMovementResponse>>() {};
+        ResponseEntity<RestResponsePage<StockMovementResponse>> response = restTemplate.exchange(
+            url, HttpMethod.GET, null, responseType);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(response.getBody()).isNotNull();
-        assertThat(response.getBody()).contains("IN");
-        assertThat(response.getBody()).contains("INITIAL_STOCK");
-        assertThat(response.getBody()).contains("\"quantity\":10");
-        assertThat(response.getBody()).contains("\"previousStock\":10");
-        assertThat(response.getBody()).contains("\"newStock\":10");
+        assertThat(response.getBody().getContent()).hasSize(1);
+        
+        StockMovementResponse movement = response.getBody().getContent().get(0);
+        assertThat(movement.movementType().name()).isEqualTo("IN");
+        assertThat(movement.reason().name()).isEqualTo("INITIAL_STOCK");
+        assertThat(movement.quantity()).isEqualTo(10);
+        assertThat(movement.previousStock()).isEqualTo(10);
+        assertThat(movement.newStock()).isEqualTo(10);
     }
 
     @Test
@@ -94,14 +103,22 @@ class ProductStockMovementIntegrationTest {
 
         String url = "/api/v1/products/" + testProductId + "/stock-movements";
 
-        ResponseEntity<String> response = restTemplate.getForEntity(url, String.class);
+        ParameterizedTypeReference<RestResponsePage<StockMovementResponse>> responseType = 
+            new ParameterizedTypeReference<RestResponsePage<StockMovementResponse>>() {};
+        ResponseEntity<RestResponsePage<StockMovementResponse>> response = restTemplate.exchange(
+            url, HttpMethod.GET, null, responseType);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(response.getBody()).isNotNull();
-        assertThat(response.getBody()).contains("OUT");
-        assertThat(response.getBody()).contains("\"quantity\":5");
-        assertThat(response.getBody()).contains("IN");
-        assertThat(response.getBody()).contains("PURCHASE");
+        assertThat(response.getBody().getContent()).hasSizeGreaterThanOrEqualTo(2);
+        
+        boolean hasOutMovement = response.getBody().getContent().stream()
+            .anyMatch(m -> m.movementType().name().equals("OUT") && m.quantity().equals(5));
+        boolean hasInMovement = response.getBody().getContent().stream()
+            .anyMatch(m -> m.movementType().name().equals("IN") && m.reason().name().equals("PURCHASE"));
+        
+        assertThat(hasOutMovement).isTrue();
+        assertThat(hasInMovement).isTrue();
     }
 
     @Test
@@ -116,14 +133,23 @@ class ProductStockMovementIntegrationTest {
         restTemplate.postForEntity("/api/v1/stock-movements", secondMovement, StockMovementResponse.class);
 
         String url = "/api/v1/products/" + testProductId + "/stock-movements";
-        ResponseEntity<String> response = restTemplate.getForEntity(url, String.class);
+        
+        ParameterizedTypeReference<RestResponsePage<StockMovementResponse>> responseType = 
+            new ParameterizedTypeReference<RestResponsePage<StockMovementResponse>>() {};
+        ResponseEntity<RestResponsePage<StockMovementResponse>> response = restTemplate.exchange(
+            url, HttpMethod.GET, null, responseType);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(response.getBody()).isNotNull();
-        assertThat(response.getBody()).contains("newStock");
-        assertThat(response.getBody()).contains("previousStock");
-        assertThat(response.getBody()).contains("IN");
-        assertThat(response.getBody()).contains("OUT");
+        assertThat(response.getBody().getContent()).hasSizeGreaterThanOrEqualTo(2);
+        
+        // Verify all movements have proper stock tracking fields
+        response.getBody().getContent().forEach(movement -> {
+            assertThat(movement.newStock()).isNotNull();
+            assertThat(movement.previousStock()).isNotNull();
+            assertThat(movement.movementType()).isIn(
+                com.inventory.enums.MovementType.IN, com.inventory.enums.MovementType.OUT);
+        });
     }
 
     @Test
@@ -134,12 +160,16 @@ class ProductStockMovementIntegrationTest {
         stockMovementRepository.deleteAll();
 
         String url = "/api/v1/products/" + testProductId + "/stock-movements";
-        ResponseEntity<String> response = restTemplate.getForEntity(url, String.class);
+        
+        ParameterizedTypeReference<RestResponsePage<StockMovementResponse>> responseType = 
+            new ParameterizedTypeReference<RestResponsePage<StockMovementResponse>>() {};
+        ResponseEntity<RestResponsePage<StockMovementResponse>> response = restTemplate.exchange(
+            url, HttpMethod.GET, null, responseType);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(response.getBody()).isNotNull();
-        assertThat(response.getBody()).contains("\"content\":[]");
-        assertThat(response.getBody()).contains("\"totalElements\":0");
+        assertThat(response.getBody().getContent()).isEmpty();
+        assertThat(response.getBody().getTotalElements()).isEqualTo(0);
     }
 
     @Test
@@ -174,11 +204,14 @@ class ProductStockMovementIntegrationTest {
 
         String url = "/api/v1/products/" + anotherProductId + "/stock-movements";
 
-        ResponseEntity<String> response = restTemplate.getForEntity(url, String.class);
+        ParameterizedTypeReference<RestResponsePage<StockMovementResponse>> responseType = 
+            new ParameterizedTypeReference<RestResponsePage<StockMovementResponse>>() {};
+        ResponseEntity<RestResponsePage<StockMovementResponse>> response = restTemplate.exchange(
+            url, HttpMethod.GET, null, responseType);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(response.getBody()).isNotNull();
-        assertThat(response.getBody()).contains("\"content\":[]"); // Empty page
+        assertThat(response.getBody().getContent()).isEmpty();
     }
 
     @Test
@@ -202,14 +235,19 @@ class ProductStockMovementIntegrationTest {
 
         String url = "/api/v1/products/" + testProductId + "/stock-movements";
 
-        ResponseEntity<String> response = restTemplate.getForEntity(url, String.class);
+        ParameterizedTypeReference<RestResponsePage<StockMovementResponse>> responseType = 
+            new ParameterizedTypeReference<RestResponsePage<StockMovementResponse>>() {};
+        ResponseEntity<RestResponsePage<StockMovementResponse>> response = restTemplate.exchange(
+            url, HttpMethod.GET, null, responseType);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(response.getBody()).isNotNull();
 
         // Find our created movement in the response
-        assertThat(response.getBody()).contains(movement.reference());
-        assertThat(response.getBody()).contains(String.valueOf(movement.quantity()));
+        boolean movementFound = response.getBody().getContent().stream()
+            .anyMatch(m -> m.reference().equals(movement.reference()) && 
+                          m.quantity().equals(movement.quantity()));
+        assertThat(movementFound).isTrue();
 
         // Verify product was updated
         Product product = productRepository.findById(testProductId).orElse(null);

@@ -1,11 +1,13 @@
 package com.inventory.integration.controller;
 
 import com.inventory.dto.request.CreateSupplierRequest;
+import com.inventory.dto.response.ProductResponse;
 import com.inventory.dto.response.SupplierResponse;
 import com.inventory.entity.Supplier;
 import com.inventory.enums.SupplierStatus;
 import com.inventory.enums.SupplierType;
 import com.inventory.integration.fixtures.ProductTestFactory;
+import com.inventory.integration.fixtures.RestResponsePage;
 import com.inventory.integration.fixtures.SupplierTestFactory;
 import com.inventory.repository.ProductRepository;
 import com.inventory.repository.StockMovementRepository;
@@ -14,6 +16,8 @@ import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.client.TestRestTemplate;
+import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.test.context.ActiveProfiles;
@@ -99,6 +103,7 @@ class SupplierControllerIntegrationTest {
                 "/api/v1/suppliers", duplicateRequest, String.class);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+        assertThat(response.getBody()).contains("already exists");
     }
 
     @Test
@@ -118,13 +123,19 @@ class SupplierControllerIntegrationTest {
 
         String url = "/api/v1/suppliers/" + testSupplierId + "/products";
 
-        ResponseEntity<String> response = restTemplate.getForEntity(url, String.class);
+        ParameterizedTypeReference<RestResponsePage<ProductResponse>> responseType = 
+            new ParameterizedTypeReference<RestResponsePage<ProductResponse>>() {};
+        ResponseEntity<RestResponsePage<ProductResponse>> response = restTemplate.exchange(
+            url, HttpMethod.GET, null, responseType);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(response.getBody()).isNotNull();
-        assertThat(response.getBody()).contains(productRequest.name());
-        assertThat(response.getBody()).contains(productRequest.sku());
-        assertThat(response.getBody()).contains(testSupplierId.toString());
+        assertThat(response.getBody().getContent()).hasSizeGreaterThanOrEqualTo(1);
+        
+        boolean productFound = response.getBody().getContent().stream()
+            .anyMatch(p -> p.name().equals(productRequest.name()) && 
+                          p.sku().equals(productRequest.sku()));
+        assertThat(productFound).isTrue();
     }
 
     @Test
@@ -148,12 +159,22 @@ class SupplierControllerIntegrationTest {
                 "&minRating=4.0" +
                 "&maxDeliveryDays=7";
 
-        ResponseEntity<String> response = restTemplate.getForEntity(searchUrl, String.class);
+        ParameterizedTypeReference<RestResponsePage<SupplierResponse>> responseType = 
+            new ParameterizedTypeReference<RestResponsePage<SupplierResponse>>() {};
+        ResponseEntity<RestResponsePage<SupplierResponse>> response = restTemplate.exchange(
+            searchUrl, HttpMethod.GET, null, responseType);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(response.getBody()).isNotNull();
-        assertThat(response.getBody()).contains("Domestic Supplier");
-        assertThat(response.getBody()).doesNotContain("International Supplier");
+        assertThat(response.getBody().getContent()).hasSizeGreaterThanOrEqualTo(1);
+        
+        boolean domesticSupplierFound = response.getBody().getContent().stream()
+            .anyMatch(s -> s.name().equals("Domestic Supplier"));
+        boolean internationalSupplierFound = response.getBody().getContent().stream()
+            .anyMatch(s -> s.name().equals("International Supplier"));
+        
+        assertThat(domesticSupplierFound).isTrue();
+        assertThat(internationalSupplierFound).isFalse();
     }
 
     @Test
@@ -166,6 +187,7 @@ class SupplierControllerIntegrationTest {
         ResponseEntity<String> response = restTemplate.getForEntity(url, String.class);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+        assertThat(response.getBody()).contains("Supplier not found");
     }
 
     @AfterEach

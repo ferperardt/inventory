@@ -106,6 +106,7 @@ class ProductControllerIntegrationTest {
 
         // Then
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(response.getBody()).contains("Validation Failed");
     }
 
     @Test
@@ -132,6 +133,7 @@ class ProductControllerIntegrationTest {
 
         // Then
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+        assertThat(response.getBody()).contains("already exists");
     }
 
     @Test
@@ -147,22 +149,22 @@ class ProductControllerIntegrationTest {
 
         // Then
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
+        assertThat(response.getBody()).contains("Stock quantity");
     }
 
     @Test
     @Order(5)
-    @DisplayName("🔴 EXPECTED TO FAIL: Should return 404 when supplier does not exist")
+    @DisplayName("Should return 404 when supplier does not exist")
     void shouldReturn404WhenSupplierDoesNotExist() {
         // Given
         CreateProductRequest request = ProductTestFactory.productWithNonExistentSupplier();
 
-        // When - THIS MIGHT FAIL with 500 instead of 404 due to poor exception handling
+        // When
         ResponseEntity<String> response = restTemplate.postForEntity(
                 "/api/v1/products", request, String.class);
 
-        // Then - Should be 404, but might be 500 due to current implementation
-        // This test exposes another issue: exception handling in ProductService
-        assertThat(response.getStatusCode()).isIn(HttpStatus.NOT_FOUND, HttpStatus.INTERNAL_SERVER_ERROR);
+        // Then
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
     }
 
     @Test
@@ -190,8 +192,6 @@ class ProductControllerIntegrationTest {
         // Verify product was created successfully
         Product savedProduct = productRepository.findBySkuAndActiveTrue(request.sku()).orElse(null);
         assertThat(savedProduct).isNotNull();
-        // Note: Can't test lazy collections outside transaction
-        // The 201 CREATED response with 2 suppliers proves the n:n relationship works
     }
 
     @Test
@@ -210,6 +210,7 @@ class ProductControllerIntegrationTest {
 
         // Then
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(response.getBody()).contains("is required");
     }
 
     @AfterEach

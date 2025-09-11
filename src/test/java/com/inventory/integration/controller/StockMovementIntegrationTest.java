@@ -5,6 +5,7 @@ import com.inventory.dto.response.StockMovementResponse;
 import com.inventory.entity.Product;
 import com.inventory.entity.Supplier;
 import com.inventory.integration.fixtures.ProductTestFactory;
+import com.inventory.integration.fixtures.RestResponsePage;
 import com.inventory.integration.fixtures.StockMovementTestFactory;
 import com.inventory.integration.fixtures.SupplierTestFactory;
 import com.inventory.repository.ProductRepository;
@@ -14,6 +15,8 @@ import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.client.TestRestTemplate;
+import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.test.context.ActiveProfiles;
@@ -126,6 +129,7 @@ class StockMovementIntegrationTest {
                 "/api/v1/stock-movements", request, String.class);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
+        assertThat(response.getBody()).contains("Insufficient stock");
 
         Product productAfter = productRepository.findById(testProductId).orElse(null);
         assertThat(productAfter).isNotNull();
@@ -144,6 +148,7 @@ class StockMovementIntegrationTest {
                 "/api/v1/stock-movements", request, String.class);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+        assertThat(response.getBody()).contains("Product not found");
     }
 
     @Test
@@ -158,12 +163,22 @@ class StockMovementIntegrationTest {
                 .validOutMovementRequest(testProductId, 2);
         restTemplate.postForEntity("/api/v1/stock-movements", secondMovement, StockMovementResponse.class);
 
-        ResponseEntity<String> response = restTemplate.getForEntity("/api/v1/stock-movements", String.class);
+        ParameterizedTypeReference<RestResponsePage<StockMovementResponse>> responseType = 
+            new ParameterizedTypeReference<RestResponsePage<StockMovementResponse>>() {};
+        ResponseEntity<RestResponsePage<StockMovementResponse>> response = restTemplate.exchange(
+            "/api/v1/stock-movements", HttpMethod.GET, null, responseType);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(response.getBody()).isNotNull();
-        assertThat(response.getBody()).contains("IN");
-        assertThat(response.getBody()).contains("OUT");
+        assertThat(response.getBody().getContent()).hasSizeGreaterThanOrEqualTo(2);
+        
+        boolean hasInMovement = response.getBody().getContent().stream()
+            .anyMatch(m -> m.movementType().name().equals("IN"));
+        boolean hasOutMovement = response.getBody().getContent().stream()
+            .anyMatch(m -> m.movementType().name().equals("OUT"));
+            
+        assertThat(hasInMovement).isTrue();
+        assertThat(hasOutMovement).isTrue();
     }
 
     @Test

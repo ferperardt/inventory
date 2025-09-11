@@ -111,8 +111,8 @@ class TransactionalIntegrationTest {
         ResponseEntity<String> response = restTemplate.postForEntity(
                 "/api/v1/products", requestWithNonExistentSupplier, String.class);
 
-        // Should fail with either 404 or 500 depending on exception handling
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+        assertThat(response.getBody()).contains("Supplier not found");
 
         long productsCountAfter = productRepository.count();
         assertThat(productsCountAfter).isEqualTo(productsCountBefore);
@@ -183,6 +183,7 @@ class TransactionalIntegrationTest {
                 "/api/v1/stock-movements", insufficientMovement, String.class);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
+        assertThat(response.getBody()).contains("Insufficient stock");
 
         Product productAfter = productRepository.findById(productId).orElse(null);
         assertThat(productAfter).isNotNull();
@@ -269,6 +270,7 @@ class TransactionalIntegrationTest {
                 null, String.class);
 
         assertThat(deleteResponse.getStatusCode()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
+        assertThat(deleteResponse.getBody()).contains("Cannot delete product");
 
         Product productAfter = productRepository.findById(productId).orElse(null);
         assertThat(productAfter).isNotNull();
