@@ -613,6 +613,151 @@ class ProductServiceTest {
         }
     }
 
+    @Nested
+    @DisplayName("updateProductSuppliers() Tests")
+    class UpdateProductSuppliersTests {
+
+        @Test
+        @DisplayName("Should update product suppliers successfully")
+        void shouldUpdateProductSuppliersSuccessfully() {
+            // Given
+            UUID productId = UUID.randomUUID();
+            UUID supplier1Id = UUID.randomUUID();
+            UUID supplier2Id = UUID.randomUUID();
+            List<UUID> supplierIds = List.of(supplier1Id, supplier2Id);
+
+            Product existingProduct = createProduct();
+            Supplier supplier1 = createSupplier();
+            supplier1.setId(supplier1Id);
+            Supplier supplier2 = createSupplier();
+            supplier2.setId(supplier2Id);
+
+            Product updatedProduct = createProduct();
+            updatedProduct.setSuppliers(List.of(supplier1, supplier2));
+            ProductResponse expectedResponse = createProductResponse();
+
+            given(productRepository.findById(productId)).willReturn(Optional.of(existingProduct));
+            given(supplierService.getSupplierEntityById(supplier1Id)).willReturn(supplier1);
+            given(supplierService.getSupplierEntityById(supplier2Id)).willReturn(supplier2);
+            given(productRepository.save(existingProduct)).willReturn(updatedProduct);
+            given(productMapper.toResponse(updatedProduct)).willReturn(expectedResponse);
+
+            // When
+            ProductResponse result = productService.updateProductSuppliers(productId, supplierIds);
+
+            // Then
+            assertThat(result).isEqualTo(expectedResponse);
+            then(productRepository).should().findById(productId);
+            then(supplierService).should().getSupplierEntityById(supplier1Id);
+            then(supplierService).should().getSupplierEntityById(supplier2Id);
+            then(productRepository).should().save(existingProduct);
+            then(productMapper).should().toResponse(updatedProduct);
+        }
+
+        @Test
+        @DisplayName("Should throw ProductNotFoundException when product not found")
+        void shouldThrowProductNotFoundExceptionWhenProductNotFound() {
+            // Given
+            UUID productId = UUID.randomUUID();
+            List<UUID> supplierIds = List.of(UUID.randomUUID());
+
+            given(productRepository.findById(productId)).willReturn(Optional.empty());
+
+            // When & Then
+            assertThatThrownBy(() -> productService.updateProductSuppliers(productId, supplierIds))
+                    .isInstanceOf(ProductNotFoundException.class);
+
+            then(productRepository).should().findById(productId);
+            then(supplierService).should(never()).getSupplierEntityById(any());
+            then(productRepository).should(never()).save(any());
+        }
+
+        @Test
+        @DisplayName("Should throw ProductNotFoundException when product is inactive")
+        void shouldThrowProductNotFoundExceptionWhenProductIsInactive() {
+            // Given
+            UUID productId = UUID.randomUUID();
+            List<UUID> supplierIds = List.of(UUID.randomUUID());
+            Product inactiveProduct = createSoftDeletedProduct();
+
+            given(productRepository.findById(productId)).willReturn(Optional.of(inactiveProduct));
+
+            // When & Then
+            assertThatThrownBy(() -> productService.updateProductSuppliers(productId, supplierIds))
+                    .isInstanceOf(ProductNotFoundException.class);
+
+            then(productRepository).should().findById(productId);
+            then(supplierService).should(never()).getSupplierEntityById(any());
+            then(productRepository).should(never()).save(any());
+        }
+
+        @Test
+        @DisplayName("Should throw IllegalArgumentException when supplier list is null")
+        void shouldThrowIllegalArgumentExceptionWhenSupplierListIsNull() {
+            // Given
+            UUID productId = UUID.randomUUID();
+            Product existingProduct = createProduct();
+
+            given(productRepository.findById(productId)).willReturn(Optional.of(existingProduct));
+
+            // When & Then
+            assertThatThrownBy(() -> productService.updateProductSuppliers(productId, null))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessage("At least one supplier is required");
+
+            then(productRepository).should().findById(productId);
+            then(supplierService).should(never()).getSupplierEntityById(any());
+            then(productRepository).should(never()).save(any());
+        }
+
+        @Test
+        @DisplayName("Should throw IllegalArgumentException when supplier list is empty")
+        void shouldThrowIllegalArgumentExceptionWhenSupplierListIsEmpty() {
+            // Given
+            UUID productId = UUID.randomUUID();
+            List<UUID> emptySupplierIds = List.of();
+            Product existingProduct = createProduct();
+
+            given(productRepository.findById(productId)).willReturn(Optional.of(existingProduct));
+
+            // When & Then
+            assertThatThrownBy(() -> productService.updateProductSuppliers(productId, emptySupplierIds))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessage("At least one supplier is required");
+
+            then(productRepository).should().findById(productId);
+            then(supplierService).should(never()).getSupplierEntityById(any());
+            then(productRepository).should(never()).save(any());
+        }
+
+        @Test
+        @DisplayName("Should throw SupplierNotFoundException when supplier not found")
+        void shouldThrowSupplierNotFoundExceptionWhenSupplierNotFound() {
+            // Given
+            UUID productId = UUID.randomUUID();
+            UUID validSupplierId = UUID.randomUUID();
+            UUID invalidSupplierId = UUID.randomUUID();
+            List<UUID> supplierIds = List.of(validSupplierId, invalidSupplierId);
+
+            Product existingProduct = createProduct();
+            Supplier validSupplier = createSupplier();
+
+            given(productRepository.findById(productId)).willReturn(Optional.of(existingProduct));
+            given(supplierService.getSupplierEntityById(validSupplierId)).willReturn(validSupplier);
+            given(supplierService.getSupplierEntityById(invalidSupplierId))
+                    .willThrow(new RuntimeException("Supplier not found"));
+
+            // When & Then
+            assertThatThrownBy(() -> productService.updateProductSuppliers(productId, supplierIds))
+                    .isInstanceOf(SupplierNotFoundException.class);
+
+            then(productRepository).should().findById(productId);
+            then(supplierService).should().getSupplierEntityById(validSupplierId);
+            then(supplierService).should().getSupplierEntityById(invalidSupplierId);
+            then(productRepository).should(never()).save(any());
+        }
+    }
+
     private Product createProduct() {
         return createProduct(10);
     }

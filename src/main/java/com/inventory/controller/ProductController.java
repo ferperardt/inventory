@@ -2,6 +2,7 @@ package com.inventory.controller;
 
 import com.inventory.dto.request.CreateProductRequest;
 import com.inventory.dto.request.UpdateProductRequest;
+import com.inventory.dto.request.UpdateProductSuppliersRequest;
 import com.inventory.dto.response.ProductResponse;
 import com.inventory.dto.response.StockMovementResponse;
 import com.inventory.service.ProductService;
@@ -18,6 +19,7 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -93,6 +95,14 @@ public class ProductController {
         );
 
         return ResponseEntity.ok(products);
+    }
+
+    @PutMapping("/{id}/suppliers")
+    public ResponseEntity<ProductResponse> updateProductSuppliers(
+            @PathVariable UUID id,
+            @Valid @RequestBody UpdateProductSuppliersRequest request) {
+        ProductResponse response = productService.updateProductSuppliers(id, request.supplierIds());
+        return ResponseEntity.ok(response);
     }
 
     @GetMapping("/{id}/stock-movements")

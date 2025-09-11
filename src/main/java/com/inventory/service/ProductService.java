@@ -119,7 +119,7 @@ public class ProductService {
             }
         }
 
-        // Update the product using MapStruct (stockQuantity is no longer in UpdateProductRequest)
+        // Update the product using MapStruct
         productMapper.updateProductFromRequest(request, product);
 
         Product savedProduct = productRepository.save(product);
@@ -187,6 +187,36 @@ public class ProductService {
 
         return productRepository.findAll(spec, pageable)
                 .map(productMapper::toResponse);
+    }
+
+    @Transactional
+    public ProductResponse updateProductSuppliers(UUID id, List<UUID> supplierIds) {
+        // Find the product by ID and ensure it's active
+        Product product = productRepository.findById(id)
+                .filter(Product::getActive)
+                .orElseThrow(() -> new ProductNotFoundException(id));
+
+        // Validate that supplier IDs list is not empty
+        if (supplierIds == null || supplierIds.isEmpty()) {
+            throw new IllegalArgumentException("At least one supplier is required");
+        }
+
+        // Validate that all suppliers exist and are active
+        List<Supplier> suppliers = supplierIds.stream()
+                .map(supplierId -> {
+                    try {
+                        return supplierService.getSupplierEntityById(supplierId);
+                    } catch (Exception e) {
+                        throw new SupplierNotFoundException(supplierId);
+                    }
+                })
+                .collect(Collectors.toList());
+
+        // Update suppliers (complete replacement)
+        product.setSuppliers(suppliers);
+
+        Product savedProduct = productRepository.save(product);
+        return productMapper.toResponse(savedProduct);
     }
 
     private void validateStockLevel(Integer stockQuantity, Integer minStockLevel) {

@@ -4,7 +4,10 @@ import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
@@ -152,6 +155,52 @@ public class GlobalExceptionHandler {
         errors.put("expectedType", requiredType);
 
         return ResponseEntity.badRequest().body(errors);
+    }
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<Map<String, Object>> handleHttpMessageNotReadableException(HttpMessageNotReadableException ex) {
+        Map<String, Object> errors = new HashMap<>();
+        String message = "Invalid JSON format or malformed request body";
+        
+        // Customize message based on the specific cause
+        if (ex.getMessage().contains("Required request body is missing")) {
+            message = "Request body is required";
+        } else if (ex.getMessage().contains("JSON parse error")) {
+            message = "Invalid JSON format in request body";
+        }
+
+        errors.put("timestamp", LocalDateTime.now());
+        errors.put("status", HttpStatus.BAD_REQUEST.value());
+        errors.put("error", "Bad Request");
+        errors.put("message", message);
+
+        return ResponseEntity.badRequest().body(errors);
+    }
+
+    @ExceptionHandler(MissingServletRequestParameterException.class)
+    public ResponseEntity<Map<String, Object>> handleMissingServletRequestParameterException(MissingServletRequestParameterException ex) {
+        Map<String, Object> errors = new HashMap<>();
+        errors.put("timestamp", LocalDateTime.now());
+        errors.put("status", HttpStatus.BAD_REQUEST.value());
+        errors.put("error", "Missing Parameter");
+        errors.put("message", String.format("Required parameter '%s' is missing", ex.getParameterName()));
+        errors.put("parameter", ex.getParameterName());
+        errors.put("parameterType", ex.getParameterType());
+
+        return ResponseEntity.badRequest().body(errors);
+    }
+
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    public ResponseEntity<Map<String, Object>> handleHttpRequestMethodNotSupportedException(HttpRequestMethodNotSupportedException ex) {
+        Map<String, Object> errors = new HashMap<>();
+        errors.put("timestamp", LocalDateTime.now());
+        errors.put("status", HttpStatus.METHOD_NOT_ALLOWED.value());
+        errors.put("error", "Method Not Allowed");
+        errors.put("message", String.format("HTTP method '%s' is not supported for this endpoint", ex.getMethod()));
+        errors.put("method", ex.getMethod());
+        errors.put("supportedMethods", ex.getSupportedMethods());
+
+        return ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED).body(errors);
     }
 
     @ExceptionHandler(RuntimeException.class)

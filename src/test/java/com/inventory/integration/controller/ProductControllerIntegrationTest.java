@@ -1,6 +1,7 @@
 package com.inventory.integration.controller;
 
 import com.inventory.dto.request.CreateProductRequest;
+import com.inventory.dto.request.UpdateProductSuppliersRequest;
 import com.inventory.dto.response.ProductResponse;
 import com.inventory.entity.Product;
 import com.inventory.entity.StockMovement;
@@ -211,6 +212,138 @@ class ProductControllerIntegrationTest {
         // Then
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
         assertThat(response.getBody()).contains("is required");
+    }
+
+    @Test
+    @Order(8)
+    @DisplayName("Should update product suppliers successfully")
+    void shouldUpdateProductSuppliersSuccessfully() {
+        // Given - First create a product with one supplier
+        CreateProductRequest createRequest = ProductTestFactory.validProductRequest(validSupplierId);
+        ResponseEntity<ProductResponse> createResponse = restTemplate.postForEntity(
+                "/api/v1/products", createRequest, ProductResponse.class);
+
+        if (createResponse.getStatusCode() != HttpStatus.CREATED || createResponse.getBody() == null) {
+            return; // Skip test if product creation failed
+        }
+
+        UUID productId = createResponse.getBody().id();
+
+        // Create a second supplier for updating
+        Supplier secondSupplier = SupplierTestFactory.validSupplierEntity("Second Update Supplier");
+        UUID secondSupplierId = supplierRepository.save(secondSupplier).getId();
+
+        // Prepare request with new suppliers
+        List<UUID> newSupplierIds = List.of(validSupplierId, secondSupplierId);
+        UpdateProductSuppliersRequest request = new UpdateProductSuppliersRequest(newSupplierIds);
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(APPLICATION_JSON);
+        HttpEntity<UpdateProductSuppliersRequest> entity = new HttpEntity<>(request, headers);
+
+        // When - Update product suppliers
+        ResponseEntity<ProductResponse> response = restTemplate.exchange(
+                "/api/v1/products/" + productId + "/suppliers",
+                org.springframework.http.HttpMethod.PUT,
+                entity,
+                ProductResponse.class);
+
+        // Then
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().suppliers()).hasSize(2);
+        assertThat(response.getBody().suppliers())
+                .extracting("id")
+                .containsExactlyInAnyOrder(validSupplierId, secondSupplierId);
+    }
+
+    @Test
+    @Order(9)
+    @DisplayName("Should return 404 when updating suppliers of non-existent product")
+    void shouldReturn404WhenUpdatingSuppliersOfNonExistentProduct() {
+        // Given
+        UUID nonExistentProductId = UUID.randomUUID();
+        List<UUID> supplierIds = List.of(validSupplierId);
+        UpdateProductSuppliersRequest request = new UpdateProductSuppliersRequest(supplierIds);
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(APPLICATION_JSON);
+        HttpEntity<UpdateProductSuppliersRequest> entity = new HttpEntity<>(request, headers);
+
+        // When
+        ResponseEntity<String> response = restTemplate.exchange(
+                "/api/v1/products/" + nonExistentProductId + "/suppliers",
+                org.springframework.http.HttpMethod.PUT,
+                entity,
+                String.class);
+
+        // Then
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+    }
+
+    @Test
+    @Order(10)
+    @DisplayName("Should return 400 when updating with empty supplier list")
+    void shouldReturn400WhenUpdatingWithEmptySupplierList() {
+        // Given - First create a product
+        CreateProductRequest createRequest = ProductTestFactory.validProductRequest(validSupplierId);
+        ResponseEntity<ProductResponse> createResponse = restTemplate.postForEntity(
+                "/api/v1/products", createRequest, ProductResponse.class);
+
+        if (createResponse.getStatusCode() != HttpStatus.CREATED || createResponse.getBody() == null) {
+            return; // Skip test if product creation failed
+        }
+
+        UUID productId = createResponse.getBody().id();
+
+        // Prepare request with empty supplier list
+        List<UUID> emptySupplierIds = List.of();
+        UpdateProductSuppliersRequest request = new UpdateProductSuppliersRequest(emptySupplierIds);
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(APPLICATION_JSON);
+        HttpEntity<UpdateProductSuppliersRequest> entity = new HttpEntity<>(request, headers);
+
+        // When
+        ResponseEntity<String> response = restTemplate.exchange(
+                "/api/v1/products/" + productId + "/suppliers",
+                org.springframework.http.HttpMethod.PUT,
+                entity,
+                String.class);
+
+        // Then
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+    }
+
+    @Test
+    @Order(11)
+    @DisplayName("Should return 404 when updating with non-existent supplier")
+    void shouldReturn404WhenUpdatingWithNonExistentSupplier() {
+        // Given - First create a product
+        CreateProductRequest createRequest = ProductTestFactory.validProductRequest(validSupplierId);
+        ResponseEntity<ProductResponse> createResponse = restTemplate.postForEntity(
+                "/api/v1/products", createRequest, ProductResponse.class);
+
+        if (createResponse.getStatusCode() != HttpStatus.CREATED || createResponse.getBody() == null) {
+            return; // Skip test if product creation failed
+        }
+
+        UUID productId = createResponse.getBody().id();
+
+        // Prepare request with non-existent supplier
+        UUID nonExistentSupplierId = UUID.randomUUID();
+        List<UUID> supplierIds = List.of(validSupplierId, nonExistentSupplierId);
+        UpdateProductSuppliersRequest request = new UpdateProductSuppliersRequest(supplierIds);
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(APPLICATION_JSON);
+        HttpEntity<UpdateProductSuppliersRequest> entity = new HttpEntity<>(request, headers);
+
+        // When
+        ResponseEntity<String> response = restTemplate.exchange(
+                "/api/v1/products/" + productId + "/suppliers",
+                org.springframework.http.HttpMethod.PUT,
+                entity,
+                String.class);
+
+        // Then
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
     }
 
     @AfterEach

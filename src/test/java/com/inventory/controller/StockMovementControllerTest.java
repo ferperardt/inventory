@@ -206,7 +206,7 @@ class StockMovementControllerTest {
             StockMovementResponse inMovement = createStockMovementResponseWithTypeAndReason(MovementType.IN, MovementReason.PURCHASE);
             StockMovementResponse outMovement = createStockMovementResponseWithTypeAndReason(MovementType.OUT, MovementReason.SALE);
             StockMovementResponse adjustmentMovement = createStockMovementResponseWithTypeAndReason(MovementType.IN, MovementReason.ADJUSTMENT);
-            
+
             List<StockMovementResponse> movements = List.of(inMovement, outMovement, adjustmentMovement);
             Page<StockMovementResponse> page = new PageImpl<>(movements, PageRequest.of(0, 20), 3);
 
@@ -499,11 +499,13 @@ class StockMovementControllerTest {
         @Test
         @DisplayName("Should return 400 when request body is malformed JSON")
         void shouldReturn400WhenRequestBodyIsMalformedJson() throws Exception {
-            // When & Then - Malformed JSON typically results in 500 from Jackson
+            // When & Then
             mockMvc.perform(post("/api/v1/stock-movements")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content("{ invalid json"))
-                    .andExpect(status().isInternalServerError());
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.error").value("Bad Request"))
+                    .andExpect(jsonPath("$.message").value("Invalid JSON format in request body"));
         }
 
         @Test
@@ -643,10 +645,10 @@ class StockMovementControllerTest {
 
     private StockMovementResponse createStockMovementResponseWithTypeAndReason(MovementType movementType, MovementReason reason) {
         StockMovementResponse base = createStockMovementResponse();
-        
+
         int previousStock = movementType == MovementType.OUT ? 15 : 10;
         int newStock = movementType == MovementType.OUT ? 10 : 15;
-        
+
         return new StockMovementResponse(
                 base.id(), base.productId(), base.productSku(), base.productName(),
                 movementType, base.quantity(), previousStock, newStock, reason,

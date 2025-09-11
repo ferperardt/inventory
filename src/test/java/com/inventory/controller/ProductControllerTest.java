@@ -3,12 +3,14 @@ package com.inventory.controller;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.inventory.dto.request.CreateProductRequest;
 import com.inventory.dto.request.UpdateProductRequest;
+import com.inventory.dto.request.UpdateProductSuppliersRequest;
 import com.inventory.dto.response.ProductResponse;
 import com.inventory.exception.DuplicateSkuException;
 import com.inventory.exception.GlobalExceptionHandler;
 import com.inventory.exception.InvalidStockLevelException;
 import com.inventory.exception.ProductHasStockException;
 import com.inventory.exception.ProductNotFoundException;
+import com.inventory.exception.SupplierNotFoundException;
 import com.inventory.service.ProductService;
 import com.inventory.service.StockMovementService;
 import com.inventory.dto.response.StockMovementResponse;
@@ -633,6 +635,166 @@ class ProductControllerTest {
                     .andExpect(jsonPath("$.parameter").value("id"))
                     .andExpect(jsonPath("$.invalidValue").value("invalid-uuid"))
                     .andExpect(jsonPath("$.expectedType").value("UUID"));
+        }
+    }
+
+    @Nested
+    @DisplayName("PUT /api/v1/products/{id}/suppliers")
+    class UpdateProductSuppliersTests {
+
+        @Test
+        @DisplayName("Should update product suppliers successfully")
+        void shouldUpdateProductSuppliersSuccessfully() throws Exception {
+            // Given
+            UUID productId = UUID.randomUUID();
+            UUID supplier1Id = UUID.randomUUID();
+            UUID supplier2Id = UUID.randomUUID();
+            List<UUID> supplierIds = List.of(supplier1Id, supplier2Id);
+            UpdateProductSuppliersRequest request = new UpdateProductSuppliersRequest(supplierIds);
+            
+            ProductResponse expectedResponse = createProductResponse();
+            
+            given(productService.updateProductSuppliers(productId, supplierIds))
+                    .willReturn(expectedResponse);
+
+            // When & Then
+            mockMvc.perform(put("/api/v1/products/{id}/suppliers", productId)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(request)))
+                    .andExpect(status().isOk())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.id").value(expectedResponse.id().toString()))
+                    .andExpect(jsonPath("$.name").value(expectedResponse.name()));
+
+            then(productService).should().updateProductSuppliers(productId, supplierIds);
+        }
+
+        @Test
+        @DisplayName("Should return 404 when product not found")
+        void shouldReturn404WhenProductNotFound() throws Exception {
+            // Given
+            UUID productId = UUID.randomUUID();
+            List<UUID> supplierIds = List.of(UUID.randomUUID());
+            UpdateProductSuppliersRequest request = new UpdateProductSuppliersRequest(supplierIds);
+
+            willThrow(new ProductNotFoundException(productId))
+                    .given(productService).updateProductSuppliers(productId, supplierIds);
+
+            // When & Then
+            mockMvc.perform(put("/api/v1/products/{id}/suppliers", productId)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(request)))
+                    .andExpect(status().isNotFound())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.status").value(404))
+                    .andExpect(jsonPath("$.error").value("Product Not Found"))
+                    .andExpect(jsonPath("$.message").value("Product not found with id: " + productId));
+
+            then(productService).should().updateProductSuppliers(productId, supplierIds);
+        }
+
+        @Test
+        @DisplayName("Should return 400 when supplier list is empty")
+        void shouldReturn400WhenSupplierListIsEmpty() throws Exception {
+            // Given
+            UUID productId = UUID.randomUUID();
+            List<UUID> emptySupplierIds = List.of();
+            UpdateProductSuppliersRequest request = new UpdateProductSuppliersRequest(emptySupplierIds);
+
+            // When & Then
+            mockMvc.perform(put("/api/v1/products/{id}/suppliers", productId)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(request)))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.status").value(400))
+                    .andExpect(jsonPath("$.error").value("Validation Failed"))
+                    .andExpect(jsonPath("$.fieldErrors.supplierIds").exists());
+
+            then(productService).should(never()).updateProductSuppliers(any(), any());
+        }
+
+        @Test
+        @DisplayName("Should return 404 when supplier not found")
+        void shouldReturn404WhenSupplierNotFound() throws Exception {
+            // Given
+            UUID productId = UUID.randomUUID();
+            UUID invalidSupplierId = UUID.randomUUID();
+            List<UUID> supplierIds = List.of(invalidSupplierId);
+            UpdateProductSuppliersRequest request = new UpdateProductSuppliersRequest(supplierIds);
+
+            willThrow(new SupplierNotFoundException(invalidSupplierId))
+                    .given(productService).updateProductSuppliers(productId, supplierIds);
+
+            // When & Then
+            mockMvc.perform(put("/api/v1/products/{id}/suppliers", productId)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(request)))
+                    .andExpect(status().isNotFound())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.status").value(404))
+                    .andExpect(jsonPath("$.error").value("Supplier Not Found"))
+                    .andExpect(jsonPath("$.message").value("Supplier not found with id: " + invalidSupplierId));
+
+            then(productService).should().updateProductSuppliers(productId, supplierIds);
+        }
+
+        @Test
+        @DisplayName("Should return 400 when request body is null")
+        void shouldReturn400WhenRequestBodyIsNull() throws Exception {
+            // Given
+            UUID productId = UUID.randomUUID();
+
+            // When & Then
+            mockMvc.perform(put("/api/v1/products/{id}/suppliers", productId)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("null"))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.status").value(400))
+                    .andExpect(jsonPath("$.error").value("Bad Request"))
+                    .andExpect(jsonPath("$.message").exists());
+
+            then(productService).should(never()).updateProductSuppliers(any(), any());
+        }
+
+        @Test
+        @DisplayName("Should return 400 for invalid UUID")
+        void shouldReturn400ForInvalidUuid() throws Exception {
+            // Given
+            List<UUID> supplierIds = List.of(UUID.randomUUID());
+            UpdateProductSuppliersRequest request = new UpdateProductSuppliersRequest(supplierIds);
+
+            // When & Then
+            mockMvc.perform(put("/api/v1/products/{id}/suppliers", "invalid-uuid")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(request)))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.status").value(400))
+                    .andExpect(jsonPath("$.error").value("Invalid Parameter"))
+                    .andExpect(jsonPath("$.parameter").value("id"))
+                    .andExpect(jsonPath("$.invalidValue").value("invalid-uuid"))
+                    .andExpect(jsonPath("$.expectedType").value("UUID"));
+        }
+
+        @Test
+        @DisplayName("Should return 400 for malformed JSON")
+        void shouldReturn400ForMalformedJson() throws Exception {
+            // Given
+            UUID productId = UUID.randomUUID();
+
+            // When & Then
+            mockMvc.perform(put("/api/v1/products/{id}/suppliers", productId)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("invalid-json"))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.status").value(400))
+                    .andExpect(jsonPath("$.error").value("Bad Request"))
+                    .andExpect(jsonPath("$.message").value("Invalid JSON format in request body"));
+
+            then(productService).should(never()).updateProductSuppliers(any(), any());
         }
     }
 
