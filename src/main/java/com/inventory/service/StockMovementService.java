@@ -4,6 +4,7 @@ import com.inventory.dto.request.CreateStockMovementRequest;
 import com.inventory.dto.response.StockMovementResponse;
 import com.inventory.entity.Product;
 import com.inventory.entity.StockMovement;
+import com.inventory.enums.MovementReason;
 import com.inventory.enums.MovementType;
 import com.inventory.exception.InsufficientStockException;
 import com.inventory.exception.ProductNotFoundException;
@@ -61,15 +62,20 @@ public class StockMovementService {
 
         Integer newStock;
 
-        // Calculate new stock based on movement type
-        if (request.movementType() == MovementType.IN) {
-            newStock = currentStock + request.quantity();
-        } else { // MovementType.OUT
-            newStock = currentStock - request.quantity();
+        // Special handling for INITIAL_STOCK - sets stock directly, doesn't add/subtract
+        if (request.reason() == MovementReason.INITIAL_STOCK) {
+            newStock = request.quantity();
+        } else {
+            // Calculate new stock based on movement type for regular movements
+            if (request.movementType() == MovementType.IN) {
+                newStock = currentStock + request.quantity();
+            } else { // MovementType.OUT
+                newStock = currentStock - request.quantity();
 
-            // Validate sufficient stock for OUT movements
-            if (newStock < 0) {
-                throw new InsufficientStockException(product.getSku(), currentStock, request.quantity());
+                // Validate sufficient stock for OUT movements
+                if (newStock < 0) {
+                    throw new InsufficientStockException(product.getSku(), currentStock, request.quantity());
+                }
             }
         }
 
