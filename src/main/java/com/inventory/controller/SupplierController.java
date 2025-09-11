@@ -18,6 +18,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.Size;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -59,22 +60,55 @@ public class SupplierController {
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
+    @Operation(
+            summary = "Get all suppliers",
+            description = "Retrieves a paginated list of all suppliers"
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Suppliers retrieved successfully")
+    })
     @GetMapping
     public ResponseEntity<Page<SupplierResponse>> getAllSuppliers(
-            @PageableDefault(size = 20, sort = "name") Pageable pageable) {
+            @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
         Page<SupplierResponse> suppliers = supplierService.getAllSuppliers(pageable);
         return ResponseEntity.ok(suppliers);
     }
 
+    @Operation(
+            summary = "Get supplier by ID",
+            description = "Retrieves a specific supplier by its unique identifier"
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Supplier found",
+                    content = @Content(schema = @Schema(implementation = SupplierResponse.class))),
+            @ApiResponse(responseCode = "404", description = "Supplier not found",
+                    content = @Content)
+    })
     @GetMapping("/{id}")
-    public ResponseEntity<SupplierResponse> getSupplierById(@PathVariable UUID id) {
+    public ResponseEntity<SupplierResponse> getSupplierById(
+            @Parameter(description = "Supplier unique identifier", required = true, example = "456e1234-e89b-12d3-a456-426614174001")
+            @PathVariable UUID id) {
         SupplierResponse supplier = supplierService.getSupplierById(id);
         return ResponseEntity.ok(supplier);
     }
 
+    @Operation(
+            summary = "Update supplier",
+            description = "Updates an existing supplier with new information"
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Supplier updated successfully",
+                    content = @Content(schema = @Schema(implementation = SupplierResponse.class))),
+            @ApiResponse(responseCode = "400", description = "Invalid supplier data",
+                    content = @Content),
+            @ApiResponse(responseCode = "404", description = "Supplier not found",
+                    content = @Content)
+    })
     @PutMapping("/{id}")
     public ResponseEntity<SupplierResponse> updateSupplier(
+            @Parameter(description = "Supplier unique identifier", required = true, example = "456e1234-e89b-12d3-a456-426614174001")
             @PathVariable UUID id,
+            @Parameter(description = "Updated supplier data", required = true)
             @Valid @RequestBody UpdateSupplierRequest request) {
         SupplierResponse supplier = supplierService.updateSupplier(id, request);
         return ResponseEntity.ok(supplier);
@@ -85,13 +119,11 @@ public class SupplierController {
             description = "Searches suppliers using filters including business details, location, ratings, and delivery performance"
     )
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Search completed successfully",
-                    content = @Content(schema = @Schema(implementation = Page.class)))
+            @ApiResponse(responseCode = "200", description = "Search completed successfully")
     })
     @GetMapping("/search")
     public ResponseEntity<Page<SupplierResponse>> searchSuppliers(
-            @Parameter(description = "Pagination parameters")
-            @PageableDefault(size = 20, sort = "name") Pageable pageable,
+            @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable,
             @Parameter(description = "Filter by supplier name (partial match)")
             @RequestParam(required = false) @Size(max = 150, message = "Name must not exceed 150 characters") String name,
             @Parameter(description = "Filter by email address (partial match)")
@@ -102,7 +134,7 @@ public class SupplierController {
             @RequestParam(required = false) @Size(max = 3, message = "Country must not exceed 3 characters") String country,
             @Parameter(description = "Filter by supplier status (ACTIVE, INACTIVE, SUSPENDED)")
             @RequestParam(required = false) SupplierStatus status,
-            @Parameter(description = "Filter by supplier type (MANUFACTURER, DISTRIBUTOR, RETAILER)")
+            @Parameter(description = "Filter by supplier type (DOMESTIC, INTERNATIONAL)")
             @RequestParam(required = false) SupplierType supplierType,
             @Parameter(description = "Minimum rating filter (1.0 to 5.0)")
             @RequestParam(required = false) BigDecimal minRating,
@@ -127,17 +159,15 @@ public class SupplierController {
             description = "Retrieves all products associated with a specific supplier"
     )
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Products retrieved successfully",
-                    content = @Content(schema = @Schema(implementation = Page.class))),
+            @ApiResponse(responseCode = "200", description = "Products retrieved successfully"),
             @ApiResponse(responseCode = "404", description = "Supplier not found",
                     content = @Content)
     })
     @GetMapping("/{id}/products")
     public ResponseEntity<Page<ProductResponse>> getSupplierProducts(
-            @Parameter(description = "Supplier unique identifier", required = true)
+            @Parameter(description = "Supplier unique identifier", required = true, example = "456e1234-e89b-12d3-a456-426614174001")
             @PathVariable UUID id,
-            @Parameter(description = "Pagination parameters")
-            @PageableDefault(size = 20, sort = "name") Pageable pageable) {
+            @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
         Page<ProductResponse> products = supplierService.getSupplierProducts(id, pageable);
         return ResponseEntity.ok(products);
     }

@@ -13,6 +13,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -54,13 +55,11 @@ public class StockMovementController {
             description = "Retrieves a paginated list of all stock movements ordered by creation date (most recent first)"
     )
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Stock movements retrieved successfully",
-                    content = @Content(schema = @Schema(implementation = Page.class)))
+            @ApiResponse(responseCode = "200", description = "Stock movements retrieved successfully")
     })
     @GetMapping
     public ResponseEntity<Page<StockMovementResponse>> getAllMovements(
-            @Parameter(description = "Pagination parameters (default: 20 per page, sorted by createdAt)")
-            @PageableDefault(size = 20, sort = "createdAt") Pageable pageable) {
+            @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
         Page<StockMovementResponse> movements = stockMovementService.getAllMovements(pageable);
         return ResponseEntity.ok(movements);
     }

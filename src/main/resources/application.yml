@@ -50,7 +50,9 @@ springdoc:
     operationsSorter: method
     tagsSorter: alpha
     try-it-out-enabled: true
+    default-models-expand-depth: 1
   show-actuator: true
+  default-flat-param-object: true
 
 ---
 # Perfil DEV
