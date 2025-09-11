@@ -47,7 +47,7 @@ public class Product extends BaseEntity {
     @Column(length = 50)
     private String category;
 
-    @ManyToMany
+    @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(
         name = "product_suppliers",
         joinColumns = @JoinColumn(name = "product_id"),

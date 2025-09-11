@@ -73,6 +73,6 @@ public class Supplier extends BaseEntity {
     @DecimalMax("5.0")
     private BigDecimal rating;
     
-    @ManyToMany(mappedBy = "suppliers")
+    @ManyToMany(mappedBy = "suppliers", fetch = FetchType.LAZY)
     private List<Product> products;
 }

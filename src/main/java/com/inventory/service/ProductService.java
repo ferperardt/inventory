@@ -8,11 +8,7 @@ import com.inventory.entity.Product;
 import com.inventory.entity.Supplier;
 import com.inventory.enums.MovementReason;
 import com.inventory.enums.MovementType;
-import com.inventory.exception.DuplicateSkuException;
-import com.inventory.exception.InvalidStockLevelException;
-import com.inventory.exception.ProductHasStockException;
-import com.inventory.exception.ProductNotFoundException;
-import com.inventory.exception.SupplierNotFoundException;
+import com.inventory.exception.*;
 import com.inventory.mapper.ProductMapper;
 import com.inventory.repository.ProductRepository;
 import com.inventory.specification.ProductSpecification;
@@ -25,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 public class ProductService {
@@ -60,12 +57,12 @@ public class ProductService {
                         throw new SupplierNotFoundException(supplierId);
                     }
                 })
-                .toList();
+                .collect(Collectors.toList());
 
         Product product = productMapper.toEntity(request);
         product.setSuppliers(suppliers);
-        Product savedProduct = productRepository.save(product);
 
+        Product savedProduct = productRepository.save(product);
 
         Integer stockQuantity = request.stockQuantity() != null ? request.stockQuantity() : 0;
 
