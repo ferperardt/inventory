@@ -21,7 +21,8 @@ public record UpdateSupplierRequest(
         @Size(max = 50, message = "Business ID must not exceed 50 characters")
         String businessId,
 
-        @Schema(description = "Updated supplier status", example = "ACTIVE")
+        @Schema(description = "Updated supplier status", example = "ACTIVE", requiredMode = Schema.RequiredMode.REQUIRED)
+        @NotNull(message = "Status is required")
         SupplierStatus status,
 
         @Schema(description = "Updated email address", example = "contact@techcorp-intl.com", requiredMode = Schema.RequiredMode.REQUIRED)

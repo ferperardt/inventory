@@ -139,11 +139,14 @@ public class ProductController {
 
     @Operation(
             summary = "Delete product",
-            description = "Soft deletes a product (marks as inactive instead of permanent deletion)"
+            description = "Soft deletes a product (marks as inactive instead of permanent deletion). " +
+                          "Product can only be deleted if its current stock quantity is zero."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "204", description = "Product deleted successfully"),
             @ApiResponse(responseCode = "404", description = "Product not found",
+                    content = @Content),
+            @ApiResponse(responseCode = "422", description = "Product cannot be deleted because it has stock",
                     content = @Content)
     })
     @DeleteMapping("/{id}")

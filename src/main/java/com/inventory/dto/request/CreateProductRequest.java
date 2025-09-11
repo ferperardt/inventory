@@ -31,11 +31,11 @@ public record CreateProductRequest(
         @Digits(integer = 8, fraction = 2, message = "Price must have at most 8 integer digits and 2 decimal places")
         BigDecimal price,
 
-        @Schema(description = "Current stock quantity", example = "50", defaultValue = "0")
+        @Schema(description = "Current stock quantity. Must be greater than or equal to minStockLevel.", example = "50", defaultValue = "0")
         @Min(value = 0, message = "Stock quantity cannot be negative")
         Integer stockQuantity,
 
-        @Schema(description = "Minimum stock level for low stock alerts", example = "10", defaultValue = "0")
+        @Schema(description = "Minimum stock level for low stock alerts. Stock quantity must be at least this value.", example = "10", defaultValue = "0")
         @Min(value = 0, message = "Minimum stock level cannot be negative")
         Integer minStockLevel,
 
@@ -43,7 +43,11 @@ public record CreateProductRequest(
         @Size(max = 50, message = "Category must not exceed 50 characters")
         String category,
 
-        @Schema(description = "List of supplier IDs associated with this product", example = "[\"123e4567-e89b-12d3-a456-426614174000\"]", requiredMode = Schema.RequiredMode.REQUIRED)
+        @Schema(
+                description = "List of supplier IDs associated with this product. At least one supplier must be provided.",
+                example = "[\"123e4567-e89b-12d3-a456-426614174000\"]",
+                requiredMode = Schema.RequiredMode.REQUIRED
+        )
         @NotEmpty(message = "At least one supplier is required")
         List<UUID> supplierIds
 ) {
